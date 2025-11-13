@@ -1,14 +1,12 @@
 from typing import Callable, Any
 
-from oidFed.tools.utils import get_dynamic_class
-from oidFed.trust.dynamic import CombinedTrustEvaluator
-
 from satosa.context import Context
 from satosa.internal import InternalData
 from satosa.response import Response
 from satosa.attribute_mapping import AttributeMapper
 
-
+from oidFed.tools.utils import get_dynamic_class
+from oidFed.trust.dynamic import CombinedTrustEvaluator
 
 
 class EndpointsLoader:
