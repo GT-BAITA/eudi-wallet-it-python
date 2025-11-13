@@ -1,6 +1,6 @@
 from typing import Callable, Any
 
-from pyeudiw.tools.utils import get_dynamic_class
+from oidFed.tools.utils import get_dynamic_class
 from oidFed.trust.dynamic import CombinedTrustEvaluator
 
 from satosa.context import Context

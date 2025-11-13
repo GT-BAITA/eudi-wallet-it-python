@@ -1,4 +1,4 @@
-from pyeudiw.tools.exceptions import HttpError
+from oidFed.tools.exceptions import HttpError
 
 class TrustChainHttpError(HttpError):
     pass
