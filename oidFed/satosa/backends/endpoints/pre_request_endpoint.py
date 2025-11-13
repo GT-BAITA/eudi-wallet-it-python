@@ -6,8 +6,7 @@ from satosa.context import Context
 from satosa.internal import InternalData
 from satosa.response import Response, Redirect
 
-from pyeudiw.satosa.utils.html_template import Jinja2TemplateHandler
-from pyeudiw.trust.dynamic import CombinedTrustEvaluator
+from oidFed.trust.dynamic import CombinedTrustEvaluator
 
 
 class PreRequestHandler():
