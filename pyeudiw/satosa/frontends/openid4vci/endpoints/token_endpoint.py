@@ -35,7 +35,7 @@ from pyeudiw.satosa.utils.validation import (
     validate_oauth_client_attestation_pop,
     OAUTH_CLIENT_ATTESTATION_POP_HEADER
 )
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     HTTP_CONTENT_TYPE_HEADER,
     FORM_URLENCODED
 )

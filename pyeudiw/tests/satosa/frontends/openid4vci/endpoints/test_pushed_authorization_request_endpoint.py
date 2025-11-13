@@ -33,7 +33,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     mock_valid_oauth_client_attestation_jwt,
     get_mocked_satosa_context
 )
-from pyeudiw.tools.content_type import HTTP_CONTENT_TYPE_HEADER, FORM_URLENCODED
+from oidFed.tools.content_type import HTTP_CONTENT_TYPE_HEADER, FORM_URLENCODED
 
 _MOCK_VALID_OAUTH_CLIENT_ATTESTATION_JWT = mock_valid_oauth_client_attestation_jwt()
 _MOCK_VALID_THUMBPRINT = "b'i5blIsZsKuQAl93ygTPpa_PrZCQZ47Bw9MGPIK-RNnM'"

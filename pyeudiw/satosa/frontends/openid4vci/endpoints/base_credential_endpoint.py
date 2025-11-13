@@ -34,7 +34,7 @@ from pyeudiw.sd_jwt.issuer import SDJWTIssuer
 from pyeudiw.sd_jwt.utils.yaml_specification import yaml_load_specification_with_placeholder
 from pyeudiw.storage.user_credential_db_engine import UserCredentialEngine
 from pyeudiw.storage.user_entity import UserEntity
-from pyeudiw.tools.content_type import HTTP_CONTENT_TYPE_HEADER, APPLICATION_JSON
+from oidFed.tools.content_type import HTTP_CONTENT_TYPE_HEADER, APPLICATION_JSON
 from pyeudiw.tools.mso_mdoc import from_jwk_to_mso_mdoc_private_key, render_mso_mdoc_template
 from pyeudiw.tools.utils import iat_now, exp_from_now
 from pyeudiw.trust.dynamic import CombinedTrustEvaluator

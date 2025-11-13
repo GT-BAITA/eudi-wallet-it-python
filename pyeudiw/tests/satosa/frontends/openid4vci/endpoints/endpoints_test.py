@@ -10,7 +10,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     MOCK_BASE_URL,
     get_mocked_satosa_context
 )
-from pyeudiw.tools.content_type import HTTP_CONTENT_TYPE_HEADER
+from oidFed.tools.content_type import HTTP_CONTENT_TYPE_HEADER
 
 def assert_invalid_request_application_json(result: Response, error_desc: Optional[str] = None):
     assert result.status == '400'

@@ -26,7 +26,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     mock_deserialized_overridable,
     REMOVE
 )
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     APPLICATION_JSON,
     ACCEPT_HEADER
 )

@@ -8,14 +8,14 @@ from pyeudiw.jwt.schemas.jwt import JWTConfig
 from pyeudiw.satosa.schemas.autorization import AuthorizationConfig
 from pyeudiw.satosa.schemas.endpoint import EndpointsConfig
 from pyeudiw.satosa.schemas.response import ResponseConfig
-from pyeudiw.satosa.schemas.ui import UiConfig
+# from pyeudiw.satosa.schemas.ui import UiConfig
 from pyeudiw.satosa.schemas.user_attributes import UserAttributesConfig
 from pyeudiw.storage.schemas.storage import Storage
 from pyeudiw.trust.model import TrustModuleConfiguration_T
 
 
 class PyeudiwBackendConfig(BaseModel):
-    ui: UiConfig
+    # ui: UiConfig
     endpoints: EndpointsConfig
     response_code: ResponseConfig
     jwt: JWTConfig

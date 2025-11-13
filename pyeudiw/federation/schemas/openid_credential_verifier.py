@@ -68,4 +68,4 @@ class OpenIDCredentialVerifier(BaseModel):
     id_token_encrypted_response_enc: List[EncryptionEncValuesSupported]
     id_token_signed_response_alg: List[SigningAlgValuesSupported]
     default_acr_values: List[Union[AcrValuesSupported, None]]
-    vp_formats: VpFormats
+    # vp_formats: VpFormats

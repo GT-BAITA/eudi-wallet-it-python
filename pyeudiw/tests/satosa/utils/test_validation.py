@@ -14,7 +14,7 @@ from pyeudiw.satosa.utils.validation import (
     validate_oauth_client_attestation,
     validate_oauth_client_attestation_pop
 )
-from pyeudiw.tools.content_type import FORM_URLENCODED, APPLICATION_JSON
+from oidFed.tools.content_type import FORM_URLENCODED, APPLICATION_JSON
 
 
 @pytest.fixture

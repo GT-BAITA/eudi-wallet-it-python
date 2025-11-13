@@ -18,7 +18,7 @@ from pyeudiw.status_list import (
     encode_cwt_status_list_token
 )
 from pyeudiw.storage.user_credential_db_engine import UserCredentialEngine
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     HTTP_CONTENT_TYPE_HEADER,
     APPLICATION_JSON,
     get_accept_header

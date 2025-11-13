@@ -6,7 +6,7 @@ from pyeudiw.satosa.frontends.openid4vci.models.deferred_credential_endpoint_res
     CredentialItem,
     DeferredCredentialEndpointResponse
 )
-from pyeudiw.tools.content_type import APPLICATION_JSON
+from oidFed.tools.content_type import APPLICATION_JSON
 
 
 class CredentialEndpointResponse(DeferredCredentialEndpointResponse):

@@ -1,4 +1,4 @@
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     is_application_json,
     is_form_urlencoded,
     get_content_type_header

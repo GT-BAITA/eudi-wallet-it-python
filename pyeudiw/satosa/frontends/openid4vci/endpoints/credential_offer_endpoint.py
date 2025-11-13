@@ -10,7 +10,7 @@ from pyeudiw.satosa.utils.validation import (
     validate_content_type,
     validate_request_method
 )
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     HTTP_CONTENT_TYPE_HEADER,
     APPLICATION_JSON
 )

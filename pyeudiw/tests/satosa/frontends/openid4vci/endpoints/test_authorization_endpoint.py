@@ -18,7 +18,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     get_mocked_openid4vpi_entity,
     get_pyeudiw_frontend_config_with_openid_credential_issuer
 )
-from pyeudiw.tools.content_type import APPLICATION_JSON, HTTP_CONTENT_TYPE_HEADER
+from oidFed.tools.content_type import APPLICATION_JSON, HTTP_CONTENT_TYPE_HEADER
 
 
 @pytest.fixture

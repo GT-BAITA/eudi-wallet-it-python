@@ -41,7 +41,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     get_mocked_openid4vpi_entity,
     mock_deserialized_overridable
 )
-from pyeudiw.tools.content_type import FORM_URLENCODED, HTTP_CONTENT_TYPE_HEADER
+from oidFed.tools.content_type import FORM_URLENCODED, HTTP_CONTENT_TYPE_HEADER
 from pyeudiw.oauth2.dpop.issuer import DPoPIssuer
 
 

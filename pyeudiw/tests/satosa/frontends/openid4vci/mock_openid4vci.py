@@ -9,7 +9,7 @@ from satosa.context import Context
 from pyeudiw.satosa.backends.openid4vp.schemas.flow import RemoteFlowType
 from pyeudiw.satosa.frontends.openid4vci.storage.entity import OpenId4VCIEntity
 from pyeudiw.satosa.utils.validation import OAUTH_CLIENT_ATTESTATION_POP_HEADER, OAUTH_CLIENT_ATTESTATION_HEADER
-from pyeudiw.tools.content_type import HTTP_CONTENT_TYPE_HEADER, FORM_URLENCODED
+from oidFed.tools.content_type import HTTP_CONTENT_TYPE_HEADER, FORM_URLENCODED
 
 BASE_PACKAGE = "pyeudiw.satosa.frontends.openid4vci"
 _JWS_HELPER_MODULE = "pyeudiw.jwt.jws_helper.JWSHelper"

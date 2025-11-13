@@ -3,7 +3,7 @@ import json
 from satosa.response import Created
 
 from pyeudiw.satosa.frontends.openid4vci.models.par_response import ParResponse
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     APPLICATION_JSON,
     get_content_type_header
 )

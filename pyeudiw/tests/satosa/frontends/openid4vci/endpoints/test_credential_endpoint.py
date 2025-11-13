@@ -35,7 +35,7 @@ from pyeudiw.tests.satosa.frontends.openid4vci.mock_openid4vci import (
     get_mocked_satosa_context,
     get_mocked_openid4vpi_entity
 )
-from pyeudiw.tools.content_type import (
+from oidFed.tools.content_type import (
     HTTP_CONTENT_TYPE_HEADER,
     APPLICATION_JSON
 )
