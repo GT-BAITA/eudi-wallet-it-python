@@ -7,9 +7,9 @@ from satosa.internal import InternalData
 from satosa.response import Response, Redirect
 
 from oidFed.trust.dynamic import CombinedTrustEvaluator
+from oidFed.tools.base_endpoint import BaseEndpoint
 
-
-class PreRequestHandler():
+class PreRequestHandler(BaseEndpoint):
 
     def __init__(
             self, 
@@ -55,15 +55,4 @@ class PreRequestHandler():
         return Redirect(response_url)
 
     def _cross_device_http_response(self, response_url: str, state: str) -> Response:
-        result = self.template.qrcode_page.render(
-            {
-                "qrcode_color": self.qrcode_settings["color"],
-                "qrcode_text": response_url,
-                "qrcode_size": self.qrcode_settings["size"],
-                "qrcode_logo_path": self.qrcode_settings["logo_path"],
-                "qrcode_expiration_time": self.qrcode_settings["expiration_time"],
-                "state": state,
-                "status_endpoint": self.absolute_status_url,
-            }
-        )
-        return Response(result, content="text/html; charset=utf8", status="200")
+        pass
