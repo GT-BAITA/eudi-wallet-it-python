@@ -76,15 +76,26 @@ class OpenIDFederation(BackendModule):
         :rtype: list[(str, ((satosa.context.Context, Any) -> satosa.response.Response, Any))]
         :raise ValueError: if more than one backend is configured
         """
+
+        el = EndpointsLoader(
+            self.config, self.internal_attributes, self.base_url, self.name, self.auth_callback_func, self.converter, self.trust_evaluator)
+        
         url_map = []
 
-        # Se você quiser endpoints customizados no futuro, adicione aqui
-        # Por enquanto, retorna lista vazia
-        if self.config.get("enable_custom_endpoints", False):
-            # Futuro: adicionar endpoints de OIDC Federation aqui
-            pass
+        for path, inst in el.endpoint_instances.items():
+            url_map.append((f"{self.name}/{path}", inst))
 
-        logger.debug(f"OIDC Federation backend loaded with {len(url_map)} endpoints")
+
+        metadata_map = self.trust_evaluator.build_metadata_endpoints(
+            self.name, self._backend_url
+        )
+
+        url_map.extend(metadata_map)
+
+        for path, inst in url_map:
+            self.endpoints[f"{path.split('/')[-1].replace('-', '_').replace('$', '')}"] = inst
+        
+        logger.debug(f"Loaded OpenID4VP endpoints: {url_map}")
         return url_map
     
     def start_auth(self, context: Context, internal_request) -> Response:
