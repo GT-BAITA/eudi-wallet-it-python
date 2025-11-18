@@ -17,12 +17,12 @@ from oic.utils.settings import PyoidcSettings
 import satosa.logging_util as lu
 from satosa.internal import AuthenticationInformation
 from satosa.internal import InternalData
-from .base import BackendModule
-from .oauth import get_metadata_desc_for_oauth_backend
-from ..exception import SATOSAAuthenticationError
-from ..exception import SATOSAError
-from ..exception import SATOSAMissingStateError
-from ..response import Redirect
+from satosa.backends.base import BackendModule
+from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
+from satosa.exception import SATOSAAuthenticationError
+from satosa.exception import SATOSAError
+from satosa.exception import SATOSAMissingStateError
+from satosa.response import Redirect
 
 
 logger = logging.getLogger(__name__)
