@@ -14,12 +14,16 @@ from oic.utils.authn.authn_context import UNSPECIFIED
 from oic.utils.authn.client import CLIENT_AUTHN_METHOD
 from oic.utils.settings import PyoidcSettings
 
-from satosa.backends.base import BackendModule
-from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
-from satosa.context import Context
+import satosa.logging_util as lu
+from satosa.internal import AuthenticationInformation
 from satosa.internal import InternalData
-from satosa.response import Response, Redirect
-from satosa.exception import SATOSAAuthenticationError, SATOSAError, SATOSAMissingStateError
+from .base import BackendModule
+from .oauth import get_metadata_desc_for_oauth_backend
+from ..exception import SATOSAAuthenticationError
+from ..exception import SATOSAError
+from ..exception import SATOSAMissingStateError
+from ..response import Redirect
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +31,7 @@ NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
 
 
-class OpenIDFederation(BackendModule):
+class OpenIDConnectBackend(BackendModule):
     """
     OIDC module
     """
@@ -54,7 +58,7 @@ class OpenIDFederation(BackendModule):
         super().__init__(auth_callback_func, internal_attributes, base_url, name)
         self.auth_callback_func = auth_callback_func
         self.config = config
-        cfg_verify_ssl = config["client"].get("verify_ssl", False)
+        cfg_verify_ssl = config["client"].get("verify_ssl", True)
         oidc_settings = PyoidcSettings(verify_ssl=cfg_verify_ssl)
 
         try:
