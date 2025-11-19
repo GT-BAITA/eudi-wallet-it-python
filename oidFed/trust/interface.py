@@ -29,13 +29,13 @@ class TrustEvaluator:
 
         raise NotImplementedError
 
-    def get_metadata(self, issuer: str) -> dict:
-        """
-        yields a dictionary of metadata about an issuer, according to some
-        trust model.
-        """
+    # def get_metadata(self, issuer: str) -> dict:
+    #     """
+    #     yields a dictionary of metadata about an issuer, according to some
+    #     trust model.
+    #     """
 
-        raise NotImplementedError
+    #     raise NotImplementedError
 
     def build_metadata_endpoints(
         self, base_path: str
@@ -65,5 +65,5 @@ class TrustEvaluator:
     def get_policies(self, issuer: str) -> dict:
         raise NotImplementedError("reserved for future uses")
 
-    def get_jwt_header_trust_parameters(self) -> dict:
-        raise NotImplementedError
+    # def get_jwt_header_trust_parameters(self) -> dict:
+    #     raise NotImplementedError

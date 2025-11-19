@@ -3,6 +3,7 @@ from typing import Any, Callable, List
 from satosa.context import Context
 from satosa.response import Response
 
+from oidFed.trust.exceptions import NoMetadata
 from oidFed.trust.handler.interface import TrustHandlerInterface
 from oidFed.tools.utils import dynamic_class_loader
 

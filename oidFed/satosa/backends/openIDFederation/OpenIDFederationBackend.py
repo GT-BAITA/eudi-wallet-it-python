@@ -108,7 +108,6 @@ class OpenIDFederationBackend(BackendModule):
 
         context.state[self.name] = state_data
 
-        # Agora deve funcionar com o import relativo
         signed_jwt_request = create_signed_request(self, context, oidc_nonce, oidc_state)
         
         args = {
