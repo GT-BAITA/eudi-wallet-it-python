@@ -108,10 +108,9 @@ class OpenIDFederationBackend(BackendModule):
 
         context.state[self.name] = state_data
 
-        # Gera o JWT signed request
-        signed_jwt_request = self._create_signed_request(context, oidc_nonce, oidc_state)
+        # Agora deve funcionar com o import relativo
+        signed_jwt_request = create_signed_request(self, context, oidc_nonce, oidc_state)
         
-        # Primeiro, constrói a requisição sem o parâmetro 'request'
         args = {
             "scope": self.config["client"]["auth_req_params"]["scope"],
             "response_type": self.config["client"]["auth_req_params"]["response_type"],
