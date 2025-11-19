@@ -24,6 +24,8 @@ from satosa.exception import SATOSAError
 from satosa.exception import SATOSAMissingStateError
 from satosa.response import Redirect
 
+from oidFed.utils.auth_request import create_signed_request
+
 from oidFed.trust.dynamic import SimpleTrustEvaluator
 
 logger = logging.getLogger(__name__)
@@ -107,14 +109,18 @@ class OpenIDFederationBackend(BackendModule):
         }
         context.state[self.name] = state_data
 
+        signed_jwt_request = create_signed_request(self, context, oidc_nonce, oidc_state)
+        
         args = {
             "scope": self.config["client"]["auth_req_params"]["scope"],
             "response_type": self.config["client"]["auth_req_params"]["response_type"],
             "client_id": self.client.client_id,
             "redirect_uri": self.client.registration_response["redirect_uris"][0],
             "state": oidc_state,
-            "nonce": oidc_nonce
+            "nonce": oidc_nonce,
+            "request": signed_jwt_request
         }
+
         args.update(self.config["client"]["auth_req_params"])
         auth_req = self.client.construct_AuthorizationRequest(request_args=args)
         login_url = auth_req.request(self.client.authorization_endpoint)
