@@ -24,6 +24,7 @@ from satosa.exception import SATOSAError
 from satosa.exception import SATOSAMissingStateError
 from satosa.response import Redirect
 
+from oidFed.trust.dynamic import SimpleTrustEvaluator
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
 
 
-class OpenIDConnectBackend(BackendModule):
+class OpenIDFederationBackend(BackendModule):
     """
     OIDC module
     """
@@ -83,6 +84,15 @@ class OpenIDConnectBackend(BackendModule):
         if "response_type" not in config["client"]["auth_req_params"]:
             config["auth_req_params"]["response_type"] = "code"
 
+        self.trust_evaluator = self._init_trust_evaluator()
+
+    def _init_trust_evaluator(self):
+        """Inicializa o trust evaluator apenas para endpoints"""
+        trust_config = self.config.get("trust", {})
+        default_client_id = f"{self.base_url}/{self.name}"
+        
+        return SimpleTrustEvaluator.from_config(trust_config, default_client_id)
+    
     def start_auth(self, context, request_info):
         """
         See super class method satosa.backends.base#start_auth
@@ -118,12 +128,29 @@ class OpenIDConnectBackend(BackendModule):
         :rtype: Sequence[(str, Callable[[satosa.context.Context], satosa.response.Response]]
         :return: A list that can be used to map the request to SATOSA to this endpoint.
         """
+
         url_map = []
+        
         redirect_path = urlparse(self.config["client"]["client_metadata"]["redirect_uris"][0]).path
         if not redirect_path:
             raise SATOSAError("Missing path in redirect uri")
-
+        
         url_map.append(("^%s$" % redirect_path.lstrip("/"), self.response_endpoint))
+
+        if hasattr(self, 'trust_evaluator') and self.trust_evaluator.handlers:
+            federation_endpoints = self.trust_evaluator.build_metadata_endpoints(
+                self.name,
+                f"{self.base_url}/{self.name}"  
+            )
+            
+            for path, handler in federation_endpoints:
+    
+                clean_path = path.lstrip('/')
+                url_map.append((f"^{clean_path}$", handler))
+                logger.info(f"Endpoint de federação registrado: {clean_path}")
+        else:
+            logger.warning("Nenhum trust handler configurado para endpoints de federação")
+
         return url_map
 
     def _verify_nonce(self, nonce, context):
