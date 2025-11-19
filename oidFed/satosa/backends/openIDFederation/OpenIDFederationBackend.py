@@ -98,8 +98,6 @@ class OpenIDFederationBackend(BackendModule):
     def start_auth(self, context, request_info):
         """
         See super class method satosa.backends.base#start_auth
-        :type context: satosa.context.Context
-        :type request_info: satosa.internal.InternalData
         """
         oidc_nonce = rndstr()
         oidc_state = rndstr()
@@ -107,10 +105,13 @@ class OpenIDFederationBackend(BackendModule):
             NONCE_KEY: oidc_nonce,
             STATE_KEY: oidc_state
         }
+
         context.state[self.name] = state_data
 
-        signed_jwt_request = create_signed_request(self, context, oidc_nonce, oidc_state)
+        # Gera o JWT signed request
+        signed_jwt_request = self._create_signed_request(context, oidc_nonce, oidc_state)
         
+        # Primeiro, constrói a requisição sem o parâmetro 'request'
         args = {
             "scope": self.config["client"]["auth_req_params"]["scope"],
             "response_type": self.config["client"]["auth_req_params"]["response_type"],
@@ -118,12 +119,14 @@ class OpenIDFederationBackend(BackendModule):
             "redirect_uri": self.client.registration_response["redirect_uris"][0],
             "state": oidc_state,
             "nonce": oidc_nonce,
-            "request": signed_jwt_request
         }
-
         args.update(self.config["client"]["auth_req_params"])
+        
         auth_req = self.client.construct_AuthorizationRequest(request_args=args)
+        auth_req["request"] = signed_jwt_request
         login_url = auth_req.request(self.client.authorization_endpoint)
+        
+        logger.info(f"Redirecting to OP with signed JWT request (length: {len(signed_jwt_request)})")
         return Redirect(login_url)
 
     def register_endpoints(self):
