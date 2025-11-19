@@ -24,7 +24,7 @@ from satosa.exception import SATOSAError
 from satosa.exception import SATOSAMissingStateError
 from satosa.response import Redirect
 
-from oidFed.utils.auth_request import create_signed_request
+from oidFed.satosa.utils.auth_request import create_signed_request
 
 from oidFed.trust.dynamic import SimpleTrustEvaluator
 
