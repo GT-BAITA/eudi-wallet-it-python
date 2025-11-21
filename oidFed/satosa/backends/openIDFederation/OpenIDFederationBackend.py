@@ -252,6 +252,9 @@ class OpenIDFederationBackend(BackendModule):
 
         backend_state = context.state[self.name]
         authn_resp = self.client.parse_response(AuthorizationResponse, info=context.request, sformat="dict")
+        logger.info(f"Authn response received: {authn_resp}")
+        logger.info(f"Authn response received: {context}")
+
         if backend_state[STATE_KEY] != authn_resp["state"]:
             msg = "Missing or invalid state in authn response for state: {}".format(backend_state)
             logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
