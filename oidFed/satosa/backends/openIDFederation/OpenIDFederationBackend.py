@@ -1,31 +1,32 @@
 """
 OIDC backend module.
 """
+
 import logging
 from datetime import datetime
 from urllib.parse import urlparse
 
-from oic import oic
-from oic import rndstr
-from oic.oic.message import AuthorizationResponse
-from oic.oic.message import ProviderConfigurationResponse
-from oic.oic.message import RegistrationRequest
+import satosa.logging_util as lu
+from oic import oic, rndstr
+from oic.oic.message import (
+    AuthorizationResponse,
+    ProviderConfigurationResponse,
+    RegistrationRequest,
+)
 from oic.utils.authn.authn_context import UNSPECIFIED
 from oic.utils.authn.client import CLIENT_AUTHN_METHOD
 from oic.utils.settings import PyoidcSettings
-
-import satosa.logging_util as lu
-from satosa.internal import AuthenticationInformation
-from satosa.internal import InternalData
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
-from satosa.exception import SATOSAAuthenticationError
-from satosa.exception import SATOSAError
-from satosa.exception import SATOSAMissingStateError
+from satosa.exception import (
+    SATOSAAuthenticationError,
+    SATOSAError,
+    SATOSAMissingStateError,
+)
+from satosa.internal import AuthenticationInformation, InternalData
 from satosa.response import Redirect
 
 from oidFed.satosa.utils.auth_request import create_signed_request
-
 from oidFed.trust.dynamic import SimpleTrustEvaluator
 
 logger = logging.getLogger(__name__)
@@ -74,10 +75,12 @@ class OpenIDFederationBackend(BackendModule):
             msg = {
                 "message": f"Failed to initialize client",
                 "error": str(exc),
-                "client_metadata": self.config['client']['client_metadata'],
-                "provider_metadata": self.config['provider_metadata'],
+                "client_metadata": self.config["client"]["client_metadata"],
+                "provider_metadata": self.config["provider_metadata"],
             }
-            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
             logger.error(logline)
             raise SATOSAAuthenticationError(context.state, msg) from exc
 
@@ -92,24 +95,28 @@ class OpenIDFederationBackend(BackendModule):
         """Inicializa o trust evaluator apenas para endpoints"""
         trust_config = self.config.get("trust", {})
         default_client_id = f"{self.base_url}/{self.name}"
-        
+
         return SimpleTrustEvaluator.from_config(trust_config, default_client_id)
-    
+
     def start_auth(self, context, request_info):
         """
         See super class method satosa.backends.base#start_auth
         """
         oidc_nonce = rndstr()
         oidc_state = rndstr()
-        state_data = {
-            NONCE_KEY: oidc_nonce,
-            STATE_KEY: oidc_state
-        }
+        state_data = {NONCE_KEY: oidc_nonce, STATE_KEY: oidc_state}
 
         context.state[self.name] = state_data
 
-        signed_jwt_request = create_signed_request(self, context, oidc_nonce, oidc_state)
-        
+        # Agora deve funcionar com o import relativo
+        signed_jwt_request = create_signed_request(
+            self, context, oidc_nonce, oidc_state
+        )
+        logger.debug(
+            "########################################################################"
+        )
+        logger.debug(f"Signed JWT request object: {signed_jwt_request}")
+
         args = {
             "scope": self.config["client"]["auth_req_params"]["scope"],
             "response_type": self.config["client"]["auth_req_params"]["response_type"],
@@ -119,12 +126,20 @@ class OpenIDFederationBackend(BackendModule):
             "nonce": oidc_nonce,
         }
         args.update(self.config["client"]["auth_req_params"])
-        
+
         auth_req = self.client.construct_AuthorizationRequest(request_args=args)
         auth_req["request"] = signed_jwt_request
         login_url = auth_req.request(self.client.authorization_endpoint)
-        
-        logger.info(f"Redirecting to OP with signed JWT request (length: {len(signed_jwt_request)})")
+
+        logger.debug(
+            "########################################################################"
+        )
+        logger.debug(f"Authorization request URL: {login_url}")
+        logger.debug(f"Authorization auth_req: {auth_req.to_json()}")
+
+        logger.info(
+            f"Redirecting to OP with signed JWT request (length: {len(signed_jwt_request)})"
+        )
         return Redirect(login_url)
 
     def register_endpoints(self):
@@ -137,26 +152,29 @@ class OpenIDFederationBackend(BackendModule):
         """
 
         url_map = []
-        
-        redirect_path = urlparse(self.config["client"]["client_metadata"]["redirect_uris"][0]).path
+
+        redirect_path = urlparse(
+            self.config["client"]["client_metadata"]["redirect_uris"][0]
+        ).path
         if not redirect_path:
             raise SATOSAError("Missing path in redirect uri")
-        
+
         url_map.append(("^%s$" % redirect_path.lstrip("/"), self.response_endpoint))
 
-        if hasattr(self, 'trust_evaluator') and self.trust_evaluator.handlers:
+        if hasattr(self, "trust_evaluator") and self.trust_evaluator.handlers:
             federation_endpoints = self.trust_evaluator.build_metadata_endpoints(
-                self.name,
-                f"{self.base_url}/{self.name}"  
+                self.name, f"{self.base_url}/{self.name}"
             )
-            
+
             for path, handler in federation_endpoints:
-    
-                clean_path = path.lstrip('/')
+
+                clean_path = path.lstrip("/")
                 url_map.append((f"^{clean_path}$", handler))
                 logger.info(f"Endpoint de federação registrado: {clean_path}")
         else:
-            logger.warning("Nenhum trust handler configurado para endpoints de federação")
+            logger.warning(
+                "Nenhum trust handler configurado para endpoints de federação"
+            )
 
         return url_map
 
@@ -171,10 +189,16 @@ class OpenIDFederationBackend(BackendModule):
         """
         backend_state = context.state[self.name]
         if nonce != backend_state[NONCE_KEY]:
-            msg = "Missing or invalid nonce in authn response for state: {}".format(backend_state)
-            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+            msg = "Missing or invalid nonce in authn response for state: {}".format(
+                backend_state
+            )
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
             logger.debug(logline)
-            raise SATOSAAuthenticationError(context.state, "Missing or invalid nonce in authn response")
+            raise SATOSAAuthenticationError(
+                context.state, "Missing or invalid nonce in authn response"
+            )
 
     def _get_tokens(self, authn_response, context):
         """
@@ -187,13 +211,17 @@ class OpenIDFederationBackend(BackendModule):
             # make token request
             args = {
                 "code": authn_response["code"],
-                "redirect_uri": self.client.registration_response['redirect_uris'][0],
+                "redirect_uri": self.client.registration_response["redirect_uris"][0],
             }
 
-            token_resp = self.client.do_access_token_request(scope="openid", state=authn_response["state"],
-                                                             request_args=args,
-                                                             authn_method=self.client.registration_response[
-                                                                 "token_endpoint_auth_method"])
+            token_resp = self.client.do_access_token_request(
+                scope="openid",
+                state=authn_response["state"],
+                request_args=args,
+                authn_method=self.client.registration_response[
+                    "token_endpoint_auth_method"
+                ],
+            )
 
             self._check_error_response(token_resp, context)
             return token_resp["access_token"], token_resp["id_token"]
@@ -213,7 +241,9 @@ class OpenIDFederationBackend(BackendModule):
                 error=response["error"],
                 description=response.get("error_description", ""),
             )
-            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
             logger.debug(logline)
             raise SATOSAAuthenticationError(context.state, "Access denied")
 
@@ -251,15 +281,20 @@ class OpenIDFederationBackend(BackendModule):
             raise SATOSAMissingStateError(error)
 
         backend_state = context.state[self.name]
-        authn_resp = self.client.parse_response(AuthorizationResponse, info=context.request, sformat="dict")
-        logger.info(f"Authn response received: {authn_resp}")
-        logger.info(f"Authn response received: {context}")
-
+        authn_resp = self.client.parse_response(
+            AuthorizationResponse, info=context.request, sformat="dict"
+        )
         if backend_state[STATE_KEY] != authn_resp["state"]:
-            msg = "Missing or invalid state in authn response for state: {}".format(backend_state)
-            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+            msg = "Missing or invalid state in authn response for state: {}".format(
+                backend_state
+            )
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
             logger.debug(logline)
-            raise SATOSAAuthenticationError(context.state, "Missing or invalid state in authn response")
+            raise SATOSAAuthenticationError(
+                context.state, "Missing or invalid state in authn response"
+            )
 
         self._check_error_response(authn_resp, context)
         access_token, id_token_claims = self._get_tokens(authn_resp, context)
@@ -275,7 +310,9 @@ class OpenIDFederationBackend(BackendModule):
 
         if not id_token_claims and not userinfo:
             msg = "No id_token or userinfo, nothing to do.."
-            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
             logger.error(logline)
             raise SATOSAAuthenticationError(context.state, "No user info available.")
 
@@ -283,7 +320,9 @@ class OpenIDFederationBackend(BackendModule):
         msg = "UserInfo: {}".format(all_user_claims)
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
-        internal_resp = self._translate_response(all_user_claims, self.client.authorization_endpoint)
+        internal_resp = self._translate_response(
+            all_user_claims, self.client.authorization_endpoint
+        )
         return self.auth_callback_func(context, internal_resp)
 
     def _translate_response(self, response, issuer):
@@ -310,7 +349,9 @@ class OpenIDFederationBackend(BackendModule):
         See satosa.backends.oauth.get_metadata_desc
         :rtype: satosa.metadata_creation.description.MetadataDescription
         """
-        return get_metadata_desc_for_oauth_backend(self.config["provider_metadata"]["issuer"], self.config)
+        return get_metadata_desc_for_oauth_backend(
+            self.config["provider_metadata"]["issuer"], self.config
+        )
 
 
 def _create_client(provider_metadata, client_metadata, settings=None):
@@ -323,15 +364,15 @@ def _create_client(provider_metadata, client_metadata, settings=None):
     :return: client instance to use for communicating with the configured provider
     :rtype: oic.oic.Client
     """
-    client = oic.Client(
-        client_authn_method=CLIENT_AUTHN_METHOD, settings=settings
-    )
+    client = oic.Client(client_authn_method=CLIENT_AUTHN_METHOD, settings=settings)
 
     # Provider configuration information
     if "authorization_endpoint" in provider_metadata:
         # no dynamic discovery necessary
-        client.handle_provider_config(ProviderConfigurationResponse(**provider_metadata),
-                                      provider_metadata["issuer"])
+        client.handle_provider_config(
+            ProviderConfigurationResponse(**provider_metadata),
+            provider_metadata["issuer"],
+        )
     else:
         # do dynamic discovery
         client.provider_config(provider_metadata["issuer"])
@@ -342,9 +383,12 @@ def _create_client(provider_metadata, client_metadata, settings=None):
         client.store_registration_info(RegistrationRequest(**client_metadata))
     else:
         # do dynamic registration
-        client.register(client.provider_info['registration_endpoint'],
-                        **client_metadata)
+        client.register(
+            client.provider_info["registration_endpoint"], **client_metadata
+        )
 
-    client.subject_type = (client.registration_response.get("subject_type") or
-                           client.provider_info["subject_types_supported"][0])
+    client.subject_type = (
+        client.registration_response.get("subject_type")
+        or client.provider_info["subject_types_supported"][0]
+    )
     return client
