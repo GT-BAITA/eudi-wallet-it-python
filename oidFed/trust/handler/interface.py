@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, List, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from satosa.context import Context
 from satosa.response import Response
@@ -66,9 +66,9 @@ class TrustHandlerInterface:
 
         If the TrustHandler has no associated metadata endpoints, return an empty list.
         """
-    
+
         return []
-    
+
     def get_handled_trust_material_name(self) -> str:
         """
         Return the name of the trust material that this handler can handle.
@@ -77,8 +77,10 @@ class TrustHandlerInterface:
         :rtype: str
         """
         raise NotImplementedError
-    
-    def extract_jwt_header_trust_parameters(self, trust_source: TrustSourceData) -> dict:
+
+    def extract_jwt_header_trust_parameters(
+        self, trust_source: TrustSourceData
+    ) -> dict:
         """
         Parse a trust source to extract the trust parameters (in the source)
         that can be used as a JWT header according to what this very own trust
@@ -91,10 +93,10 @@ class TrustHandlerInterface:
         return {}
 
     def validate_trust_material(
-            self, 
-            chain: list[str], 
-            trust_source: TrustSourceData,
-        ) -> tuple[bool, TrustSourceData]:
+        self,
+        chain: list[str],
+        trust_source: TrustSourceData,
+    ) -> tuple[bool, TrustSourceData]:
         """
         Validate the trust chain using the trust handler.
 
@@ -110,14 +112,14 @@ class TrustHandlerInterface:
         """
 
         raise NotImplementedError
-    
+
     def get_client_id(self) -> Optional[str]:
         """
         Return the client ID associated with this trust evaluator.
         This is typically used for OAuth2 or OpenID Connect flows.
         """
 
-        return getattr(self, 'client_id', None)
+        return getattr(self, "client_id", None)
 
     def is_it_me(self, client_id: str) -> bool:
         """

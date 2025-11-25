@@ -105,7 +105,9 @@ class JWSHelper(JWHelperInterface):
             unprotected = {}
 
         # Select the signing key
-        signing_key = self._select_signing_key((protected, unprotected), signing_kid, signing_algs)
+        signing_key = self._select_signing_key(
+            (protected, unprotected), signing_kid, signing_algs
+        )
 
         if signing_key["kty"] == "oct":
             raise JWSSigningError(f"Key {signing_key['kid']} is a symmetric key")
@@ -113,7 +115,10 @@ class JWSHelper(JWHelperInterface):
         try:
             _validate_key_with_jws_header(signing_key, protected, unprotected)
         except Exception as e:
-            raise JWSSigningError(f"failed to validate signing key: it's content it not valid for current header claims: {e}", e)
+            raise JWSSigningError(
+                f"failed to validate signing key: it's content it not valid for current header claims: {e}",
+                e,
+            )
 
         payload = serialize_payload(plain_dict)
 
@@ -122,8 +127,8 @@ class JWSHelper(JWHelperInterface):
         protected["alg"] = signing_alg
 
         # Add "typ" header if not present
-        if "typ" not in protected:
-            protected["typ"] = "sd-jwt" if self.is_sd_jwt(plain_dict) else "JWT"
+        # if "typ" not in protected:
+        #     protected["typ"] = "sd-jwt" if self.is_sd_jwt(plain_dict) else "JWT"
 
         # Include the signing key's kid in the header if required
         header_kid = protected.get("kid")
@@ -160,8 +165,8 @@ class JWSHelper(JWHelperInterface):
         )
 
     def _select_signing_key(
-        self, 
-        headers: tuple[dict, dict], 
+        self,
+        headers: tuple[dict, dict],
         signing_kid: str = "",
         signing_algs: list[str] = [],
     ) -> dict:
@@ -187,7 +192,7 @@ class JWSHelper(JWHelperInterface):
                     f"signing forced by using key with {signing_kid=}, but no such key is available"
                 )
             return signing_key.to_dict()
-        
+
         # Case 2: key forced by the user by a list of alg
         if len(signing_algs) > 0:
             signing_key: dict | None = None
@@ -232,7 +237,7 @@ class JWSHelper(JWHelperInterface):
         if len(candidate_signing_keys) == 1:
             return candidate_signing_keys[0]
         return None
-    
+
     def _select_key_by_sig_alg(self, alg: str) -> dict | None:
         """
         Select a key based on the signature algorithm.
@@ -242,10 +247,12 @@ class JWSHelper(JWHelperInterface):
             key_d: dict[str, Any] = key.to_dict()
             if alg == DEFAULT_SIG_KTY_MAP.get(key_d.get("kty", ""), ""):
                 return key_d
-            
+
         return None
 
-    def _select_key_by_kid(self, headers: tuple[dict[str, Any], dict[str, Any]]) -> dict | None:
+    def _select_key_by_kid(
+        self, headers: tuple[dict[str, Any], dict[str, Any]]
+    ) -> dict | None:
         if not headers:
             return None
         if "kid" in headers[0]:
@@ -256,7 +263,9 @@ class JWSHelper(JWHelperInterface):
             return None
         return find_jwk_by_kid([key.to_dict() for key in self.jwks], kid)
 
-    def _select_key_by_x5c(self, headers: tuple[dict[str, Any], dict[str, Any]]) -> dict | None:
+    def _select_key_by_x5c(
+        self, headers: tuple[dict[str, Any], dict[str, Any]]
+    ) -> dict | None:
         if not headers:
             return None
         x5c: list[str] | None = headers[0].get("x5c") or headers[1].get("x5c")
@@ -387,7 +396,11 @@ def _validate_key_with_header_kid(key: dict, header: dict) -> None:
     """
     :raises Exception: if the key is not compatible with the header content kid (if any)
     """
-    if (key_kid := key.get("kid")) and (header_kid := header.get("kid")) and (key_kid != header_kid):
+    if (
+        (key_kid := key.get("kid"))
+        and (header_kid := header.get("kid"))
+        and (key_kid != header_kid)
+    ):
         raise Exception(
             f"token header contains a kid {header_kid} that does not match the signing key kid {key_kid}"
         )
@@ -409,12 +422,12 @@ def _validate_key_with_header_x5c(key: dict, header: dict) -> None:
         return
     leaf_cert: str = x5c[0]
 
-    # if the key has a certificate, check the cert, otherwise check the public material    
+    # if the key has a certificate, check the cert, otherwise check the public material
     key_x5c: list[str] | None = key.get("x5c")
     if key_x5c:
         if leaf_cert != (leaf_x5c_cert := key_x5c[0]):
             raise Exception(
-                f"token header containes a chain whose leaf certificate {leaf_cert} does not match the signing key leaf certificate {leaf_x5c_cert}"\
+                f"token header containes a chain whose leaf certificate {leaf_cert} does not match the signing key leaf certificate {leaf_x5c_cert}"
             )
         return
     header_key = parse_b64der(leaf_cert)
@@ -425,7 +438,9 @@ def _validate_key_with_header_x5c(key: dict, header: dict) -> None:
     return
 
 
-def _validate_key_with_jws_header(key: dict, protected_jws_header: dict, unprotected_jws_header: dict) -> None:
+def _validate_key_with_jws_header(
+    key: dict, protected_jws_header: dict, unprotected_jws_header: dict
+) -> None:
     """
     Validate that a key used for some operations (sign, verify) on a token
     is compatible with the token header itself.

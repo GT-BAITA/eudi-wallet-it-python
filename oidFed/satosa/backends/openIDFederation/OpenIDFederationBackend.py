@@ -2,7 +2,10 @@
 OIDC backend module.
 """
 
+import base64
+import hashlib
 import logging
+import os
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -33,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
+CODE_VERIFIER_KEY = "oidc_code_verifier"  # Novo: para armazenar o code_verifier do PKCE
 
 
 class OpenIDFederationBackend(BackendModule):
@@ -85,9 +89,9 @@ class OpenIDFederationBackend(BackendModule):
             raise SATOSAAuthenticationError(context.state, msg) from exc
 
         if "scope" not in config["client"]["auth_req_params"]:
-            config["auth_req_params"]["scope"] = "openid"
+            config["client"]["auth_req_params"]["scope"] = "openid"
         if "response_type" not in config["client"]["auth_req_params"]:
-            config["auth_req_params"]["response_type"] = "code"
+            config["client"]["auth_req_params"]["response_type"] = "code"
 
         self.trust_evaluator = self._init_trust_evaluator()
 
@@ -98,13 +102,42 @@ class OpenIDFederationBackend(BackendModule):
 
         return SimpleTrustEvaluator.from_config(trust_config, default_client_id)
 
+    def _generate_pkce_pair(self):
+        """
+        Gera par PKCE (code_verifier e code_challenge) - OBRIGATÓRIO para OPs italianos
+        """
+        # Gera code_verifier (43-128 caracteres, recomendado 32 bytes)
+        code_verifier = (
+            base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
+        )
+
+        # Calcula code_challenge usando SHA256
+        code_challenge = hashlib.sha256(code_verifier.encode("utf-8")).digest()
+        code_challenge = (
+            base64.urlsafe_b64encode(code_challenge).decode("utf-8").rstrip("=")
+        )
+
+        logger.debug(
+            f"Generated PKCE - Verifier: {code_verifier}, Challenge: {code_challenge}"
+        )
+
+        return code_verifier, code_challenge
+
     def start_auth(self, context, request_info):
         """
         See super class method satosa.backends.base#start_auth
         """
-        oidc_nonce = rndstr()
-        oidc_state = rndstr()
-        state_data = {NONCE_KEY: oidc_nonce, STATE_KEY: oidc_state}
+        oidc_nonce = rndstr(32)
+        oidc_state = rndstr(32)
+
+        # Gera PKCE (OBRIGATÓRIO)
+        code_verifier, code_challenge = self._generate_pkce_pair()
+
+        state_data = {
+            NONCE_KEY: oidc_nonce,
+            STATE_KEY: oidc_state,
+            CODE_VERIFIER_KEY: code_verifier,  # Armazena para usar no callback
+        }
 
         context.state[self.name] = state_data
 
@@ -124,6 +157,9 @@ class OpenIDFederationBackend(BackendModule):
             "redirect_uri": self.client.registration_response["redirect_uris"][0],
             "state": oidc_state,
             "nonce": oidc_nonce,
+            # CORREÇÃO CRÍTICA: Adiciona PKCE como parâmetros de query também
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
         args.update(self.config["client"]["auth_req_params"])
 
@@ -132,7 +168,7 @@ class OpenIDFederationBackend(BackendModule):
         login_url = auth_req.request(self.client.authorization_endpoint)
 
         logger.debug(
-            "########################################################################"
+            "######################################################################"
         )
         logger.debug(f"Authorization request URL: {login_url}")
         logger.debug(f"Authorization auth_req: {auth_req.to_json()}")
@@ -140,6 +176,10 @@ class OpenIDFederationBackend(BackendModule):
         logger.info(
             f"Redirecting to OP with signed JWT request (length: {len(signed_jwt_request)})"
         )
+
+        logger.debug(f"Cookies antes do redirect: {getattr(context, 'cookies', {})}")
+        logger.debug(f"State antes do redirect: {context.state.get(self.name)}")
+
         return Redirect(login_url)
 
     def register_endpoints(self):
@@ -208,11 +248,19 @@ class OpenIDFederationBackend(BackendModule):
         :rtype: Tuple[Optional[str], Optional[Mapping[str, str]]]
         """
         if "code" in authn_response:
-            # make token request
+            # CORREÇÃO CRÍTICA: Adiciona PKCE code_verifier no token request
+            backend_state = context.state[self.name]
+            code_verifier = backend_state.get(CODE_VERIFIER_KEY)
+
             args = {
                 "code": authn_response["code"],
                 "redirect_uri": self.client.registration_response["redirect_uris"][0],
             }
+
+            # Adiciona code_verifier se disponível (PKCE)
+            if code_verifier:
+                args["code_verifier"] = code_verifier
+                logger.debug(f"Using PKCE code_verifier: {code_verifier}")
 
             token_resp = self.client.do_access_token_request(
                 scope="openid",
@@ -284,6 +332,18 @@ class OpenIDFederationBackend(BackendModule):
         authn_resp = self.client.parse_response(
             AuthorizationResponse, info=context.request, sformat="dict"
         )
+
+        # CORREÇÃO: Verifica se o state existe na resposta
+        if "state" not in authn_resp:
+            msg = "Missing state in authn response"
+            logline = lu.LOG_FMT.format(
+                id=lu.get_session_id(context.state), message=msg
+            )
+            logger.debug(logline)
+            raise SATOSAAuthenticationError(
+                context.state, "Missing state in authn response"
+            )
+
         if backend_state[STATE_KEY] != authn_resp["state"]:
             msg = "Missing or invalid state in authn response for state: {}".format(
                 backend_state
