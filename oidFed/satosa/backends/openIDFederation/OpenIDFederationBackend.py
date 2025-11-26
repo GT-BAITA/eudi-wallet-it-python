@@ -18,6 +18,7 @@ from oic.oic.message import (
 )
 from oic.utils.authn.authn_context import UNSPECIFIED
 from oic.utils.authn.client import CLIENT_AUTHN_METHOD
+from oic.utils.keyio import KeyBundle, KeyJar
 from oic.utils.settings import PyoidcSettings
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
@@ -74,6 +75,7 @@ class OpenIDFederationBackend(BackendModule):
                 provider_metadata=config["provider_metadata"],
                 client_metadata=config["client"]["client_metadata"],
                 settings=oidc_settings,
+                keys=config["metadata_jwks"][0],
             )
         except Exception as exc:
             msg = {
@@ -255,6 +257,7 @@ class OpenIDFederationBackend(BackendModule):
             args = {
                 "code": authn_response["code"],
                 "redirect_uri": self.client.registration_response["redirect_uris"][0],
+                "client_id": self.client.client_id,
             }
 
             # Adiciona code_verifier se disponível (PKCE)
@@ -414,7 +417,7 @@ class OpenIDFederationBackend(BackendModule):
         )
 
 
-def _create_client(provider_metadata, client_metadata, settings=None):
+def _create_client(provider_metadata, client_metadata, settings=None, keys=None):
     """
     Create a pyoidc client instance.
     :param provider_metadata: provider configuration information
@@ -424,7 +427,14 @@ def _create_client(provider_metadata, client_metadata, settings=None):
     :return: client instance to use for communicating with the configured provider
     :rtype: oic.oic.Client
     """
-    client = oic.Client(client_authn_method=CLIENT_AUTHN_METHOD, settings=settings)
+    keyjar = KeyJar()
+
+    keybundle = KeyBundle(keys=keys, verify_ssl=False)
+    keyjar.add_kb(issuer="", kb=keybundle)
+
+    client = oic.Client(
+        client_authn_method=CLIENT_AUTHN_METHOD, settings=settings, keyjar=keyjar
+    )
 
     # Provider configuration information
     if "authorization_endpoint" in provider_metadata:
