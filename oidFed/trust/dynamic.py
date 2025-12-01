@@ -102,7 +102,7 @@ class SimpleTrustEvaluator:
 
         return SimpleTrustEvaluator(handlers)
 
-    def get_metadata(self, issuer: str, trust_source: Any) -> Any:
+    def get_metadata(self, issuer: str, trust_source: Any = None) -> Any:
         """
         Método placeholder para compatibilidade.
         """

@@ -13,13 +13,17 @@ from oidFed.tools.utils import exp_from_now, iat_now
 logger = logging.getLogger(__name__)
 
 
-def create_signed_request(backend_instance, context, nonce, state):
+def create_signed_request(backend_instance, context, nonce, state, code_challenge=None):
     """
     Cria JWT signed request para OpenID Federation
     Baseado no RequestHandler do projeto
+
+    :param code_challenge: Code challenge PKCE (opcional) - DEVE ser o mesmo da URL
     """
     # Constrói as claims do request object
-    request_claims = _build_authorization_request_claims(backend_instance, nonce, state)
+    request_claims = _build_authorization_request_claims(
+        backend_instance, nonce, state, code_challenge
+    )
 
     # DEBUG: Log das claims completas
     import json
@@ -58,12 +62,25 @@ def create_signed_request(backend_instance, context, nonce, state):
         )
 
 
-def _build_authorization_request_claims(backend_instance, nonce, state):
+def _build_authorization_request_claims(
+    backend_instance, nonce, state, code_challenge=None
+):
     """
-    Constrói as claims do request object - VERSÃO COMPLETA CORRIGIDA
+    Constrói as claims do request object - VERSÃO CORRIGIDA
     """
-    # Gera PKCE (OBRIGATÓRIO para OPs italianos)
-    code_challenge = _generate_code_challenge()
+    # 🆕 CORREÇÃO CRÍTICA: Usar code_challenge fornecido ou gerar um
+    if code_challenge:
+        # Usar o challenge fornecido (consistente com a URL)
+        final_code_challenge = code_challenge
+        logger.debug(
+            f"✅ PKCE CONSISTENTE - Usando challenge fornecido: {final_code_challenge}"
+        )
+    else:
+        # Gerar novo (fallback - não recomendado)
+        final_code_challenge = _generate_code_challenge()
+        logger.warning(
+            f"⚠️  PKCE INCONSISTENTE - Challenge gerado: {final_code_challenge}"
+        )
 
     claims = {
         # Claims OIDC padrão
@@ -83,8 +100,8 @@ def _build_authorization_request_claims(backend_instance, nonce, state):
         "response_type": "code",
         "nonce": nonce,
         "state": state,
-        # CORREÇÃO CRÍTICA 2: Adiciona PKCE (OBRIGATÓRIO)
-        "code_challenge": code_challenge,
+        # 🆕 CORREÇÃO: Usar o challenge correto
+        "code_challenge": final_code_challenge,
         "code_challenge_method": "S256",
         "response_mode": "form_post",
         "claims": {
@@ -102,6 +119,7 @@ def _build_authorization_request_claims(backend_instance, nonce, state):
         "prompt": "consent login",
     }
 
+    # ... resto do código permanece igual ...
     # Adiciona client_metadata se disponível via trust evaluator
     try:
         if hasattr(backend_instance, "trust_evaluator"):
@@ -116,20 +134,30 @@ def _build_authorization_request_claims(backend_instance, nonce, state):
     return claims
 
 
-def _generate_code_challenge():
+def _generate_code_challenge(code_verifier=None):
     """
-    Gera code challenge para PKCE (igual ao RP funcional)
+    Gera code challenge para PKCE - VERSÃO CONSISTENTE
+
+    :param code_verifier: Code verifier opcional (se None, gera um novo)
     """
-    # Gera code verifier (48 caracteres como no exemplo funcional)
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
+    if code_verifier is None:
+        # Gera code verifier (48 caracteres como no exemplo funcional)
+        code_verifier = (
+            base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
+        )
 
-    # Calcula code challenge (exatamente como no RP funcional)
-    code_challenge = hashlib.sha256(code_verifier.encode("utf-8")).digest()
-    code_challenge = (
-        base64.urlsafe_b64encode(code_challenge).decode("utf-8").rstrip("=")
-    )
+    # 🆕 CORREÇÃO: Usar EXATAMENTE o mesmo método que _generate_pkce_pair
+    # Code challenge: SHA-256 + base64url EXATAMENTE como o OP faz
+    challenge_bytes = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge_b64 = base64.urlsafe_b64encode(challenge_bytes).decode("ascii")
 
-    logger.debug(f"Generated PKCE - Challenge: {code_challenge}")
+    # IMPORTANTE: Usar o mesmo método que o OP (.replace) em vez de .rstrip
+    code_challenge = code_challenge_b64.replace("=", "")
+
+    logger.debug(f"🔑 _generate_code_challenge:")
+    logger.debug(f"   Input verifier: {code_verifier}")
+    logger.debug(f"   Output challenge: {code_challenge}")
+    logger.debug(f"   Challenge length: {len(code_challenge)}")
 
     return code_challenge
 

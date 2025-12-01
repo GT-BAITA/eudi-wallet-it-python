@@ -11,7 +11,9 @@ from urllib.parse import urlparse
 
 import satosa.logging_util as lu
 from oic import oic, rndstr
+from oic.oauth2.message import SINGLE_OPTIONAL_STRING, SINGLE_REQUIRED_STRING
 from oic.oic.message import (
+    AccessTokenRequest,
     AuthorizationResponse,
     ProviderConfigurationResponse,
     RegistrationRequest,
@@ -38,6 +40,17 @@ logger = logging.getLogger(__name__)
 NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
 CODE_VERIFIER_KEY = "oidc_code_verifier"  # Novo: para armazenar o code_verifier do PKCE
+
+
+# SOBRESCREVER a classe original
+AccessTokenRequest.c_param = {
+    "grant_type": SINGLE_REQUIRED_STRING,
+    "code": SINGLE_REQUIRED_STRING,
+    "redirect_uri": SINGLE_REQUIRED_STRING,
+    "client_id": SINGLE_REQUIRED_STRING,
+    "client_secret": SINGLE_OPTIONAL_STRING,
+    "state": SINGLE_OPTIONAL_STRING,
+}
 
 
 class OpenIDFederationBackend(BackendModule):
@@ -75,7 +88,7 @@ class OpenIDFederationBackend(BackendModule):
                 provider_metadata=config["provider_metadata"],
                 client_metadata=config["client"]["client_metadata"],
                 settings=oidc_settings,
-                keys=config["metadata_jwks"][0],
+                keys=config["metadata_jwks"],
             )
         except Exception as exc:
             msg = {
@@ -145,7 +158,7 @@ class OpenIDFederationBackend(BackendModule):
 
         # Agora deve funcionar com o import relativo
         signed_jwt_request = create_signed_request(
-            self, context, oidc_nonce, oidc_state
+            self, context, oidc_nonce, oidc_state, code_challenge
         )
         logger.debug(
             "########################################################################"
@@ -258,6 +271,7 @@ class OpenIDFederationBackend(BackendModule):
                 "code": authn_response["code"],
                 "redirect_uri": self.client.registration_response["redirect_uris"][0],
                 "client_id": self.client.client_id,
+                "grant_type": "authorization_code",
             }
 
             # Adiciona code_verifier se disponível (PKCE)
@@ -429,8 +443,10 @@ def _create_client(provider_metadata, client_metadata, settings=None, keys=None)
     """
     keyjar = KeyJar()
 
-    keybundle = KeyBundle(keys=keys, verify_ssl=False)
-    keyjar.add_kb(issuer="", kb=keybundle)
+    keybundle1 = KeyBundle(keys=keys[0], verify_ssl=False)
+    keybundle2 = KeyBundle(keys=keys[1], verify_ssl=False)
+    keyjar.add_kb(issuer="", kb=keybundle1)
+    keyjar.add_kb(issuer="", kb=keybundle2)
 
     client = oic.Client(
         client_authn_method=CLIENT_AUTHN_METHOD, settings=settings, keyjar=keyjar
