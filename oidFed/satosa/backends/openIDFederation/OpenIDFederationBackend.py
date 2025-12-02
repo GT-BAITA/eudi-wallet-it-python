@@ -137,10 +137,7 @@ class OpenIDFederationBackend(BackendModule):
 
         url_map.append(("^%s$" % redirect_path.lstrip("/"), self.response_endpoint))
 
-        logger.info(
-            f"========= {hasattr(self, "trust_evaluator")} ======         {self}        ==="
-        )
-        if hasattr(self, "client") and self.pre_request_config.handler:
+        if hasattr(self, "pre_request_config") and self.pre_request_config.handler:
             federation_endpoints = self.pre_request_config.handler
 
             for path, handler in federation_endpoints:
