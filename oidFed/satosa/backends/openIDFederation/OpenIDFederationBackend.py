@@ -2,25 +2,14 @@
 OIDC backend module.
 """
 
-import base64
-import hashlib
 import logging
-import os
 from datetime import datetime
 from urllib.parse import urlparse
 
 import satosa.logging_util as lu
-from oic import oic, rndstr
 from oic.oauth2.message import SINGLE_OPTIONAL_STRING, SINGLE_REQUIRED_STRING
-from oic.oic.message import (
-    AccessTokenRequest,
-    AuthorizationResponse,
-    ProviderConfigurationResponse,
-    RegistrationRequest,
-)
+from oic.oic.message import AccessTokenRequest, AuthorizationResponse
 from oic.utils.authn.authn_context import UNSPECIFIED
-from oic.utils.authn.client import CLIENT_AUTHN_METHOD
-from oic.utils.keyio import KeyBundle, KeyJar
 from oic.utils.settings import PyoidcSettings
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
@@ -32,15 +21,13 @@ from satosa.exception import (
 from satosa.internal import AuthenticationInformation, InternalData
 from satosa.response import Redirect
 
-from oidFed.satosa.utils.auth_request import create_signed_request
-from oidFed.trust.dynamic import SimpleTrustEvaluator
+from oidFed.satosa.backends.openIDFederation.PreRequest import PreRequest
 
 logger = logging.getLogger(__name__)
 
 NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
-CODE_VERIFIER_KEY = "oidc_code_verifier"  # Novo: para armazenar o code_verifier do PKCE
-
+CODE_VERIFIER_KEY = "oidc_code_verifier"
 
 # SOBRESCREVER a classe original
 AccessTokenRequest.c_param = {
@@ -78,24 +65,21 @@ class OpenIDFederationBackend(BackendModule):
         :type name: str
         """
         super().__init__(auth_callback_func, internal_attributes, base_url, name)
+
         self.auth_callback_func = auth_callback_func
         self.config = config
-        cfg_verify_ssl = config["client"].get("verify_ssl", True)
-        oidc_settings = PyoidcSettings(verify_ssl=cfg_verify_ssl)
+        oidc_settings = PyoidcSettings(verify_ssl=self.config["network"]["verify_ssl"])
 
         try:
-            self.client = _create_client(
-                provider_metadata=config["provider_metadata"],
-                client_metadata=config["client"]["client_metadata"],
-                settings=oidc_settings,
-                keys=config["metadata_jwks"],
+            self.pre_request_config = PreRequest(
+                config=self.config, settings=oidc_settings, name=name
             )
         except Exception as exc:
             msg = {
                 "message": f"Failed to initialize client",
                 "error": str(exc),
-                "client_metadata": self.config["client"]["client_metadata"],
-                "provider_metadata": self.config["provider_metadata"],
+                "client_metadata": self.config["federation"]["metadata"],
+                "provider_metadata": self.config["client"]["provider_metadata"],
             }
             logline = lu.LOG_FMT.format(
                 id=lu.get_session_id(context.state), message=msg
@@ -103,97 +87,32 @@ class OpenIDFederationBackend(BackendModule):
             logger.error(logline)
             raise SATOSAAuthenticationError(context.state, msg) from exc
 
-        if "scope" not in config["client"]["auth_req_params"]:
-            config["client"]["auth_req_params"]["scope"] = "openid"
-        if "response_type" not in config["client"]["auth_req_params"]:
-            config["client"]["auth_req_params"]["response_type"] = "code"
-
-        self.trust_evaluator = self._init_trust_evaluator()
-
-    def _init_trust_evaluator(self):
-        """Inicializa o trust evaluator apenas para endpoints"""
-        trust_config = self.config.get("trust", {})
-        default_client_id = f"{self.base_url}/{self.name}"
-
-        return SimpleTrustEvaluator.from_config(trust_config, default_client_id)
-
-    def _generate_pkce_pair(self):
-        """
-        Gera par PKCE (code_verifier e code_challenge) - OBRIGATÓRIO para OPs italianos
-        """
-        # Gera code_verifier (43-128 caracteres, recomendado 32 bytes)
-        code_verifier = (
-            base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
-        )
-
-        # Calcula code_challenge usando SHA256
-        code_challenge = hashlib.sha256(code_verifier.encode("utf-8")).digest()
-        code_challenge = (
-            base64.urlsafe_b64encode(code_challenge).decode("utf-8").rstrip("=")
-        )
-
-        logger.debug(
-            f"Generated PKCE - Verifier: {code_verifier}, Challenge: {code_challenge}"
-        )
-
-        return code_verifier, code_challenge
-
     def start_auth(self, context, request_info):
         """
         See super class method satosa.backends.base#start_auth
         """
-        oidc_nonce = rndstr(32)
-        oidc_state = rndstr(32)
 
-        # Gera PKCE (OBRIGATÓRIO)
-        code_verifier, code_challenge = self._generate_pkce_pair()
-
-        state_data = {
-            NONCE_KEY: oidc_nonce,
-            STATE_KEY: oidc_state,
-            CODE_VERIFIER_KEY: code_verifier,  # Armazena para usar no callback
-        }
-
-        context.state[self.name] = state_data
-
-        # Agora deve funcionar com o import relativo
-        signed_jwt_request = create_signed_request(
-            self, context, oidc_nonce, oidc_state, code_challenge
-        )
-        logger.debug(
-            "########################################################################"
-        )
-        logger.debug(f"Signed JWT request object: {signed_jwt_request}")
+        pre_request = self.pre_request_config.pre_request(context)
 
         args = {
             "scope": self.config["client"]["auth_req_params"]["scope"],
             "response_type": self.config["client"]["auth_req_params"]["response_type"],
-            "client_id": self.client.client_id,
-            "redirect_uri": self.client.registration_response["redirect_uris"][0],
-            "state": oidc_state,
-            "nonce": oidc_nonce,
-            # CORREÇÃO CRÍTICA: Adiciona PKCE como parâmetros de query também
-            "code_challenge": code_challenge,
+            "client_id": self.config["federation"]["metadata"]["client_id"],
+            "redirect_uri": self.config["federation"]["metadata"]["redirect_uris"][0],
+            "state": pre_request["state"],
+            "nonce": pre_request["nonce"],
+            "code_challenge": pre_request["code_challenge"],
             "code_challenge_method": "S256",
         }
+
         args.update(self.config["client"]["auth_req_params"])
-
-        auth_req = self.client.construct_AuthorizationRequest(request_args=args)
-        auth_req["request"] = signed_jwt_request
-        login_url = auth_req.request(self.client.authorization_endpoint)
-
-        logger.debug(
-            "######################################################################"
+        auth_req = self.pre_request_config.client.construct_AuthorizationRequest(
+            request_args=args
         )
-        logger.debug(f"Authorization request URL: {login_url}")
-        logger.debug(f"Authorization auth_req: {auth_req.to_json()}")
-
-        logger.info(
-            f"Redirecting to OP with signed JWT request (length: {len(signed_jwt_request)})"
+        auth_req["request"] = pre_request["signed_jwt_request"]
+        login_url = auth_req.request(
+            self.pre_request_config.client.authorization_endpoint
         )
-
-        logger.debug(f"Cookies antes do redirect: {getattr(context, 'cookies', {})}")
-        logger.debug(f"State antes do redirect: {context.state.get(self.name)}")
 
         return Redirect(login_url)
 
@@ -206,20 +125,23 @@ class OpenIDFederationBackend(BackendModule):
         :return: A list that can be used to map the request to SATOSA to this endpoint.
         """
 
+        logger.info(f"========= {self.config["client"]} =========")
+
         url_map = []
 
         redirect_path = urlparse(
-            self.config["client"]["client_metadata"]["redirect_uris"][0]
+            self.config["federation"]["metadata"]["redirect_uris"][0]
         ).path
         if not redirect_path:
             raise SATOSAError("Missing path in redirect uri")
 
         url_map.append(("^%s$" % redirect_path.lstrip("/"), self.response_endpoint))
 
-        if hasattr(self, "trust_evaluator") and self.trust_evaluator.handlers:
-            federation_endpoints = self.trust_evaluator.build_metadata_endpoints(
-                self.name, f"{self.base_url}/{self.name}"
-            )
+        logger.info(
+            f"========= {hasattr(self, "trust_evaluator")} ======         {self}        ==="
+        )
+        if hasattr(self, "client") and self.pre_request_config.handler:
+            federation_endpoints = self.pre_request_config.handler
 
             for path, handler in federation_endpoints:
 
@@ -269,8 +191,10 @@ class OpenIDFederationBackend(BackendModule):
 
             args = {
                 "code": authn_response["code"],
-                "redirect_uri": self.client.registration_response["redirect_uris"][0],
-                "client_id": self.client.client_id,
+                "redirect_uri": self.pre_request_config.client.registration_response[
+                    "redirect_uris"
+                ][0],
+                "client_id": self.pre_request_config.client.client_id,
                 "grant_type": "authorization_code",
             }
 
@@ -279,11 +203,11 @@ class OpenIDFederationBackend(BackendModule):
                 args["code_verifier"] = code_verifier
                 logger.debug(f"Using PKCE code_verifier: {code_verifier}")
 
-            token_resp = self.client.do_access_token_request(
+            token_resp = self.pre_request_config.client.do_access_token_request(
                 scope="openid",
                 state=authn_response["state"],
                 request_args=args,
-                authn_method=self.client.registration_response[
+                authn_method=self.pre_request_config.client.registration_response[
                     "token_endpoint_auth_method"
                 ],
             )
@@ -314,7 +238,9 @@ class OpenIDFederationBackend(BackendModule):
 
     def _get_userinfo(self, state, context):
         kwargs = {"method": self.config["client"].get("userinfo_request_method", "GET")}
-        userinfo_resp = self.client.do_user_info_request(state=state, **kwargs)
+        userinfo_resp = self.pre_request_config.client.do_user_info_request(
+            state=state, **kwargs
+        )
         self._check_error_response(userinfo_resp, context)
         return userinfo_resp.to_dict()
 
@@ -346,11 +272,10 @@ class OpenIDFederationBackend(BackendModule):
             raise SATOSAMissingStateError(error)
 
         backend_state = context.state[self.name]
-        authn_resp = self.client.parse_response(
+        authn_resp = self.pre_request_config.client.parse_response(
             AuthorizationResponse, info=context.request, sformat="dict"
         )
 
-        # CORREÇÃO: Verifica se o state existe na resposta
         if "state" not in authn_resp:
             msg = "Missing state in authn response"
             logline = lu.LOG_FMT.format(
@@ -398,7 +323,7 @@ class OpenIDFederationBackend(BackendModule):
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
         internal_resp = self._translate_response(
-            all_user_claims, self.client.authorization_endpoint
+            all_user_claims, self.pre_request_config.client.authorization_endpoint
         )
         return self.auth_callback_func(context, internal_resp)
 
@@ -429,52 +354,3 @@ class OpenIDFederationBackend(BackendModule):
         return get_metadata_desc_for_oauth_backend(
             self.config["provider_metadata"]["issuer"], self.config
         )
-
-
-def _create_client(provider_metadata, client_metadata, settings=None, keys=None):
-    """
-    Create a pyoidc client instance.
-    :param provider_metadata: provider configuration information
-    :type provider_metadata: Mapping[str, Union[str, Sequence[str]]]
-    :param client_metadata: client metadata
-    :type client_metadata: Mapping[str, Union[str, Sequence[str]]]
-    :return: client instance to use for communicating with the configured provider
-    :rtype: oic.oic.Client
-    """
-    keyjar = KeyJar()
-
-    keybundle1 = KeyBundle(keys=keys[0], verify_ssl=False)
-    keybundle2 = KeyBundle(keys=keys[1], verify_ssl=False)
-    keyjar.add_kb(issuer="", kb=keybundle1)
-    keyjar.add_kb(issuer="", kb=keybundle2)
-
-    client = oic.Client(
-        client_authn_method=CLIENT_AUTHN_METHOD, settings=settings, keyjar=keyjar
-    )
-
-    # Provider configuration information
-    if "authorization_endpoint" in provider_metadata:
-        # no dynamic discovery necessary
-        client.handle_provider_config(
-            ProviderConfigurationResponse(**provider_metadata),
-            provider_metadata["issuer"],
-        )
-    else:
-        # do dynamic discovery
-        client.provider_config(provider_metadata["issuer"])
-
-    # Client information
-    if "client_id" in client_metadata:
-        # static client info provided
-        client.store_registration_info(RegistrationRequest(**client_metadata))
-    else:
-        # do dynamic registration
-        client.register(
-            client.provider_info["registration_endpoint"], **client_metadata
-        )
-
-    client.subject_type = (
-        client.registration_response.get("subject_type")
-        or client.provider_info["subject_types_supported"][0]
-    )
-    return client
