@@ -10,7 +10,6 @@ import satosa.logging_util as lu
 from oic.oauth2.message import SINGLE_OPTIONAL_STRING, SINGLE_REQUIRED_STRING
 from oic.oic.message import AccessTokenRequest, AuthorizationResponse
 from oic.utils.authn.authn_context import UNSPECIFIED
-from oic.utils.settings import PyoidcSettings
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
 from satosa.exception import (
@@ -21,7 +20,9 @@ from satosa.exception import (
 from satosa.internal import AuthenticationInformation, InternalData
 from satosa.response import Redirect
 
-from oidFed.satosa.backends.openIDFederation.PreRequest import PreRequest
+from oidFed.satosa.backends.config import Config
+from oidFed.satosa.backends.OidFed import OidFed
+from oidFed.satosa.backends.OidFed.modules.RequestFormater import RequestFormater
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ NONCE_KEY = "oidc_nonce"
 STATE_KEY = "oidc_state"
 CODE_VERIFIER_KEY = "oidc_code_verifier"
 
-# SOBRESCREVER a classe original
+# SOBRESCREVE a classe original
 AccessTokenRequest.c_param = {
     "grant_type": SINGLE_REQUIRED_STRING,
     "code": SINGLE_REQUIRED_STRING,
@@ -65,21 +66,21 @@ class OpenIDFederationBackend(BackendModule):
         :type name: str
         """
         super().__init__(auth_callback_func, internal_attributes, base_url, name)
-
-        self.auth_callback_func = auth_callback_func
-        self.config = config
-        oidc_settings = PyoidcSettings(verify_ssl=self.config["network"]["verify_ssl"])
+        self.request_instance = None
 
         try:
-            self.pre_request_config = PreRequest(
-                config=self.config, settings=oidc_settings, name=name
+            self.config = Config(
+                config=config,
+                auth_callback_func=auth_callback_func,
+                name=name,
+                base_url=base_url,
             )
+            self.oidfed = OidFed(config=self.config)
         except Exception as exc:
             msg = {
-                "message": f"Failed to initialize client",
+                "message": "Failed to initialize client",
                 "error": str(exc),
-                "client_metadata": self.config["federation"]["metadata"],
-                "provider_metadata": self.config["client"]["provider_metadata"],
+                "current_client_config": config,
             }
             logline = lu.LOG_FMT.format(
                 id=lu.get_session_id(context.state), message=msg
@@ -92,27 +93,32 @@ class OpenIDFederationBackend(BackendModule):
         See super class method satosa.backends.base#start_auth
         """
 
-        pre_request = self.pre_request_config.pre_request(context)
+        logger.info("Iniciando processo de autenticação")
+        self.request_instance = RequestFormater(self.config, context)
 
         args = {
-            "scope": self.config["client"]["auth_req_params"]["scope"],
-            "response_type": self.config["client"]["auth_req_params"]["response_type"],
-            "client_id": self.config["federation"]["metadata"]["client_id"],
-            "redirect_uri": self.config["federation"]["metadata"]["redirect_uris"][0],
-            "state": pre_request["state"],
-            "nonce": pre_request["nonce"],
-            "code_challenge": pre_request["code_challenge"],
+            "scope": self.config.client["auth_req_params"]["scope"],
+            "response_type": self.config.client["auth_req_params"]["response_type"],
+            "client_id": self.config.federation["metadata"]["client_id"],
+            "redirect_uri": self.config.federation["metadata"]["redirect_uris"][0],
+            "state": self.request_instance.request["state"],
+            "nonce": self.request_instance.request["nonce"],
+            "code_challenge": self.request_instance.request["code_challenge"],
             "code_challenge_method": "S256",
         }
 
-        args.update(self.config["client"]["auth_req_params"])
-        auth_req = self.pre_request_config.client.construct_AuthorizationRequest(
-            request_args=args
-        )
-        auth_req["request"] = pre_request["signed_jwt_request"]
-        login_url = auth_req.request(
-            self.pre_request_config.client.authorization_endpoint
-        )
+        args.update(self.config.client["auth_req_params"])
+
+        logger.debug(f"Argumentos: {args}")
+
+        logger.info("Construindo Authorization Request")
+        auth_req = self.oidfed.client.construct_AuthorizationRequest(request_args=args)
+        auth_req["request"] = self.request_instance.request["signed_jwt_request"]
+
+        logger.info("Authorization Request construida com sucesso")
+        logger.debug(f"Authorization Request: {auth_req}")
+
+        login_url = auth_req.request(self.oidfed.client.authorization_endpoint)
 
         return Redirect(login_url)
 
@@ -120,30 +126,32 @@ class OpenIDFederationBackend(BackendModule):
         """
         Creates a list of all the endpoints this backend module needs to listen to. In this case
         it's the authentication response from the underlying OP that is redirected from the OP to
-        the proxy.
+        the proxy
         :rtype: Sequence[(str, Callable[[satosa.context.Context], satosa.response.Response]]
         :return: A list that can be used to map the request to SATOSA to this endpoint.
         """
 
-        logger.info(f"========= {self.config["client"]} =========")
+        logger.info("Iniciando o registro do well-known")
 
         url_map = []
 
         redirect_path = urlparse(
-            self.config["federation"]["metadata"]["redirect_uris"][0]
+            self.config.federation["metadata"]["redirect_uris"][0]
         ).path
+
         if not redirect_path:
             raise SATOSAError("Missing path in redirect uri")
 
         url_map.append(("^%s$" % redirect_path.lstrip("/"), self.response_endpoint))
 
-        if hasattr(self, "pre_request_config") and self.pre_request_config.handler:
-            federation_endpoints = self.pre_request_config.handler
+        if hasattr(self, "oidfed") and self.oidfed.handler:
+            federation_endpoints = self.oidfed.handler
 
             for path, handler in federation_endpoints:
 
                 clean_path = path.lstrip("/")
                 url_map.append((f"^{clean_path}$", handler))
+                logger.info(f"CAMINHO: {url_map}")
                 logger.info(f"Endpoint de federação registrado: {clean_path}")
         else:
             logger.warning(
@@ -182,16 +190,15 @@ class OpenIDFederationBackend(BackendModule):
         :rtype: Tuple[Optional[str], Optional[Mapping[str, str]]]
         """
         if "code" in authn_response:
-            # CORREÇÃO CRÍTICA: Adiciona PKCE code_verifier no token request
             backend_state = context.state[self.name]
             code_verifier = backend_state.get(CODE_VERIFIER_KEY)
 
             args = {
                 "code": authn_response["code"],
-                "redirect_uri": self.pre_request_config.client.registration_response[
+                "redirect_uri": self.oidfed.client.registration_response[
                     "redirect_uris"
                 ][0],
-                "client_id": self.pre_request_config.client.client_id,
+                "client_id": self.oidfed.client.client_id,
                 "grant_type": "authorization_code",
             }
 
@@ -200,11 +207,11 @@ class OpenIDFederationBackend(BackendModule):
                 args["code_verifier"] = code_verifier
                 logger.debug(f"Using PKCE code_verifier: {code_verifier}")
 
-            token_resp = self.pre_request_config.client.do_access_token_request(
+            token_resp = self.oidfed.client.do_access_token_request(
                 scope="openid",
                 state=authn_response["state"],
                 request_args=args,
-                authn_method=self.pre_request_config.client.registration_response[
+                authn_method=self.oidfed.client.registration_response[
                     "token_endpoint_auth_method"
                 ],
             )
@@ -234,10 +241,8 @@ class OpenIDFederationBackend(BackendModule):
             raise SATOSAAuthenticationError(context.state, "Access denied")
 
     def _get_userinfo(self, state, context):
-        kwargs = {"method": self.config["client"].get("userinfo_request_method", "GET")}
-        userinfo_resp = self.pre_request_config.client.do_user_info_request(
-            state=state, **kwargs
-        )
+        kwargs = {"method": self.config.client.get("userinfo_request_method", "GET")}
+        userinfo_resp = self.oidfed.client.do_user_info_request(state=state, **kwargs)
         self._check_error_response(userinfo_resp, context)
         return userinfo_resp.to_dict()
 
@@ -253,7 +258,7 @@ class OpenIDFederationBackend(BackendModule):
         :return:
         """
 
-        if self.name not in context.state:
+        if self.config.name not in context.state:
             """
             If we end up here, it means that the user returns to the proxy
             without the SATOSA session cookie. This can happen at least in the
@@ -268,8 +273,8 @@ class OpenIDFederationBackend(BackendModule):
             error = "Received AuthN response without a SATOSA session cookie"
             raise SATOSAMissingStateError(error)
 
-        backend_state = context.state[self.name]
-        authn_resp = self.pre_request_config.client.parse_response(
+        backend_state = context.state[self.config.name]
+        authn_resp = self.oidfed.client.parse_response(
             AuthorizationResponse, info=context.request, sformat="dict"
         )
 
@@ -320,9 +325,9 @@ class OpenIDFederationBackend(BackendModule):
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
         internal_resp = self._translate_response(
-            all_user_claims, self.pre_request_config.client.authorization_endpoint
+            all_user_claims, self.oidfed.client.authorization_endpoint
         )
-        return self.auth_callback_func(context, internal_resp)
+        return self.config.auth_callback_func(context, internal_resp)
 
     def _translate_response(self, response, issuer):
         """
