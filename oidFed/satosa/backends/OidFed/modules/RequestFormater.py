@@ -6,10 +6,10 @@ import os
 from oic import rndstr
 from satosa.exception import SATOSAAuthenticationError
 
-from oidFed.jwt.exceptions import JWSSigningError
-from oidFed.jwt.jws_helper import JWSHelper
 from oidFed.satosa.backends.config import Config
-from oidFed.satosa.backends.OidFed.tools.utils import exp_from_now, iat_now
+from oidFed.satosa.backends.federation.exceptions import JWSSigningError
+from oidFed.satosa.backends.federation.schemas.jwt.jws_helper import JWSHelper
+from oidFed.satosa.backends.tools.utils import exp_from_now, iat_now
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 import logging
 
 from oidFed.satosa.backends.config import Config
+from oidFed.satosa.backends.federation.federationHandler import FederationHandler
 from oidFed.satosa.backends.OidFed.modules.Oidc import Oidc
-from oidFed.trust.handler.federation import FederationHandler
 
 logger = logging.getLogger(__name__)
 

@@ -20,11 +20,11 @@ from satosa.response import Redirect
 from oidFed.satosa.backends.config import Config
 from oidFed.satosa.backends.OidFed import OidFed
 from oidFed.satosa.backends.OidFed.modules.RequestFormater import RequestFormater
-from oidFed.satosa.backends.OidFed.tools.satosa_utils import (
+from oidFed.satosa.backends.tools.satosa_utils import (
     check_error_response,
     translate_response,
 )
-from oidFed.satosa.backends.OidFed.tools.utils import verify_nonce
+from oidFed.satosa.backends.tools.utils import verify_nonce
 
 logger = logging.getLogger(__name__)
 
