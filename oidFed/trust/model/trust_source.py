@@ -1,10 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from cryptojwt.jwk.jwk import key_from_jwk_dict
 
 from oidFed.jwk import JWK
-from oidFed.tools.utils import iat_now
+from oidFed.satosa.backends.OidFed.tools.utils import iat_now
+
 
 @dataclass
 class TrustEvaluationType:
@@ -41,7 +42,11 @@ class TrustEvaluationType:
         self.jwks = []
 
         for jwk in jwks:
-            jwk = key_from_jwk_dict(jwk).serialize(private=False) if isinstance(jwk, dict) else jwk.as_public_dict()
+            jwk = (
+                key_from_jwk_dict(jwk).serialize(private=False)
+                if isinstance(jwk, dict)
+                else jwk.as_public_dict()
+            )
             self.jwks.append(jwk)
 
         for ttype, tp in kwargs.items():
@@ -59,10 +64,12 @@ class TrustEvaluationType:
         return {
             "attribute_name": self.attribute_name,
             "expiration_date": self.expiration_date,
-            "jwks": [key_from_jwk_dict(jwk).serialize(private=False) for jwk in self.jwks],
+            "jwks": [
+                key_from_jwk_dict(jwk).serialize(private=False) for jwk in self.jwks
+            ],
             "trust_handler_name": self.trust_handler_name,
             "crls": self.crls,
-            self.attribute_name: getattr(self, self.attribute_name)
+            self.attribute_name: getattr(self, self.attribute_name),
         }
 
     @property
@@ -74,9 +81,10 @@ class TrustEvaluationType:
         :rtype: bool
         """
         return iat_now() > self.expiration_date
-    
+
     def get_jwks(self) -> list[dict]:
         return self.jwks
+
 
 @dataclass
 class TrustSourceData:
@@ -109,13 +117,15 @@ class TrustSourceData:
         self.revoked = revoked
 
         if "jwks" in metadata and "keys" in metadata["jwks"]:
-            metadata["jwks"]["keys"] = [key_from_jwk_dict(jwk).serialize(private=False) for jwk in metadata["jwks"]["keys"]]
+            metadata["jwks"]["keys"] = [
+                key_from_jwk_dict(jwk).serialize(private=False)
+                for jwk in metadata["jwks"]["keys"]
+            ]
 
         self.metadata = metadata
         for _type, tp in kwargs.items():
-            setattr(self, _type, TrustEvaluationType(**tp)) 
+            setattr(self, _type, TrustEvaluationType(**tp))
 
-    
     def add_trust_param(self, ttype: str, trust_params: TrustEvaluationType) -> None:
         """
         Add a trust source to the trust source.
@@ -150,8 +160,10 @@ class TrustSourceData:
         if not self.has_trust_param(ttype):
             return None
         return getattr(self, ttype)
-    
-    def get_trust_evaluation_type_by_handler_name(self, handler_name: str) -> Optional[TrustEvaluationType]:
+
+    def get_trust_evaluation_type_by_handler_name(
+        self, handler_name: str
+    ) -> Optional[TrustEvaluationType]:
         """
         Return the trust source of the given handler name.
 
@@ -183,7 +195,10 @@ class TrustSourceData:
         tmp_metadata = self.metadata.copy()
 
         if "jwks" in tmp_metadata and "keys" in tmp_metadata["jwks"]:
-            tmp_metadata["jwks"]["keys"] = [key_from_jwk_dict(jwk).serialize(private=False) for jwk in tmp_metadata["jwks"]["keys"]]
+            tmp_metadata["jwks"]["keys"] = [
+                key_from_jwk_dict(jwk).serialize(private=False)
+                for jwk in tmp_metadata["jwks"]["keys"]
+            ]
 
         trust_source["metadata"] = tmp_metadata
 
@@ -192,7 +207,7 @@ class TrustSourceData:
                 trust_source[ttype] = getattr(self, ttype).serialize()
 
         return trust_source
-    
+
     def is_revoked(self) -> bool:
         """
         Return whether the trust source is revoked.
@@ -212,12 +227,7 @@ class TrustSourceData:
         :returns: The empty trust source data
         :rtype: TrustSourceData
         """
-        return TrustSourceData(
-            entity_id, 
-            policies={}, 
-            metadata={}, 
-            revoked=False
-        )
+        return TrustSourceData(entity_id, policies={}, metadata={}, revoked=False)
 
     @staticmethod
     def from_dict(data: dict) -> "TrustSourceData":

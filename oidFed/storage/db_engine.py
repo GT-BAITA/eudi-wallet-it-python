@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Callable, Tuple, Union
 
+from oidFed.satosa.backends.OidFed.tools.utils import dynamic_class_loader
 from oidFed.storage.base_cache import BaseCache, RetrieveStatus
+from oidFed.storage.base_db import BaseDB
 from oidFed.storage.base_storage import BaseStorage, TrustType
 from oidFed.storage.exceptions import ChainNotExist, EntryNotFound, StorageWriteError
 from oidFed.tools.base_logger import BaseLogger
-from oidFed.tools.utils import dynamic_class_loader
-from oidFed.storage.base_db import BaseDB
 
 
 class DBEngine(BaseStorage, BaseCache, BaseLogger):
@@ -38,11 +38,7 @@ class DBEngine(BaseStorage, BaseCache, BaseLogger):
         document_id = str(uuid.uuid4())
         for db_name, storage in self.storages:
             try:
-                storage.init_session(
-                    document_id,
-                    session_id=session_id,
-                    state=state
-                )
+                storage.init_session(document_id, session_id=session_id, state=state)
             except StorageWriteError as e:
                 self._log_critical(
                     e.__class__.__name__,
@@ -102,14 +98,10 @@ class DBEngine(BaseStorage, BaseCache, BaseLogger):
             attestation=attestation,
         )
 
-    def upsert_session(
-        self, session_id: str, data: dict
-    ) -> int:
+    def upsert_session(self, session_id: str, data: dict) -> int:
         return self.write("upsert_session", session_id, data)
-    
-    def search_session_by_field(
-        self, field: str, value: str
-    ) -> dict | None:
+
+    def search_session_by_field(self, field: str, value: str) -> dict | None:
         return self.get("search_session_by_field", field, value)
 
     def set_finalized(self, document_id: str):
@@ -121,7 +113,9 @@ class DBEngine(BaseStorage, BaseCache, BaseLogger):
     def update_response_object(
         self, nonce: str, state: str, response_object: dict, isError: bool = False
     ) -> int:
-        return self.write("update_response_object", nonce, state, response_object, isError)
+        return self.write(
+            "update_response_object", nonce, state, response_object, isError
+        )
 
     def get(self, method: str, *args, **kwargs) -> Union[dict, None]:
         """
@@ -195,10 +189,7 @@ class DBEngine(BaseStorage, BaseCache, BaseLogger):
         return self.get("get_trust_source", entity_id)
 
     def add_empty_trust_anchor(self, entity_id: str) -> str:
-        return self.write(
-            "add_empty_trust_anchor", 
-            entity_id
-        )
+        return self.write("add_empty_trust_anchor", entity_id)
 
     def add_trust_anchor(
         self,
@@ -314,7 +305,7 @@ class DBEngine(BaseStorage, BaseCache, BaseLogger):
         self, state: str, session_id: str = ""
     ) -> Union[dict, None]:
         return self.get("get_by_state_and_session_id", state, session_id)
-    
+
     def get_by_session_id(self, session_id: str) -> Union[dict, None]:
         return self.get("get_by_session_id", session_id=session_id)
 

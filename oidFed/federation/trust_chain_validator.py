@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from oidFed.federation.exceptions import (
     InvalidEntityStatement,
@@ -12,12 +13,11 @@ from oidFed.federation.statements import (
     get_entity_statements,
 )
 from oidFed.federation.utils import is_es
-from oidFed.jwk.jwks import find_jwk_by_kid
 from oidFed.jwk.exceptions import InvalidKid, KidNotFoundError
+from oidFed.jwk.jwks import find_jwk_by_kid
 from oidFed.jwt.jws_helper import JWSHelper
 from oidFed.jwt.utils import decode_jwt_header, decode_jwt_payload
-from oidFed.tools.utils import iat_now
-from typing import Any
+from oidFed.satosa.backends.OidFed.tools.utils import iat_now
 
 logger = logging.getLogger(__name__)
 

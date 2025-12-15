@@ -1,4 +1,5 @@
-from oidFed.tools.exceptions import HttpError
+from oidFed.satosa.backends.OidFed.tools.http import HttpError
+
 
 class TrustChainHttpError(HttpError):
     pass

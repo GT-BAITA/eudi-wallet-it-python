@@ -11,7 +11,7 @@ from oidFed.jwk import JWK
 from oidFed.jwk.parse import parse_x5c_keys
 from oidFed.jwt.log import logger
 from oidFed.jwt.utils import decode_jwt_payload
-from oidFed.tools.utils import iat_now
+from oidFed.satosa.backends.OidFed.tools.utils import iat_now
 
 from .exceptions import LifetimeException
 

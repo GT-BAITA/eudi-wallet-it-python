@@ -20,7 +20,7 @@ from oidFed.federation.schemas.entity_configuration import (
 from oidFed.jwk.jwks import find_jwk_by_kid
 from oidFed.jwt.jws_helper import JWSHelper
 from oidFed.jwt.utils import decode_jwt_header, decode_jwt_payload
-from oidFed.tools.utils import get_http_url
+from oidFed.satosa.backends.OidFed.tools.utils import get_http_url
 
 OIDCFED_FEDERATION_WELLKNOWN_URL = ".well-known/openid-federation"
 logger = logging.getLogger(__name__)

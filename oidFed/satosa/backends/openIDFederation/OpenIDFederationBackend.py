@@ -3,13 +3,11 @@ OIDC backend module.
 """
 
 import logging
-from datetime import datetime
 from urllib.parse import urlparse
 
 import satosa.logging_util as lu
 from oic.oauth2.message import SINGLE_OPTIONAL_STRING, SINGLE_REQUIRED_STRING
 from oic.oic.message import AccessTokenRequest, AuthorizationResponse
-from oic.utils.authn.authn_context import UNSPECIFIED
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
 from satosa.exception import (
@@ -17,16 +15,20 @@ from satosa.exception import (
     SATOSAError,
     SATOSAMissingStateError,
 )
-from satosa.internal import AuthenticationInformation, InternalData
 from satosa.response import Redirect
 
 from oidFed.satosa.backends.config import Config
 from oidFed.satosa.backends.OidFed import OidFed
 from oidFed.satosa.backends.OidFed.modules.RequestFormater import RequestFormater
+from oidFed.satosa.backends.OidFed.tools.satosa_utils import (
+    check_error_response,
+    translate_response,
+)
+from oidFed.satosa.backends.OidFed.tools.utils import verify_nonce
 
 logger = logging.getLogger(__name__)
 
-NONCE_KEY = "oidc_nonce"
+
 STATE_KEY = "oidc_state"
 CODE_VERIFIER_KEY = "oidc_code_verifier"
 
@@ -88,7 +90,7 @@ class OpenIDFederationBackend(BackendModule):
             logger.error(logline)
             raise SATOSAAuthenticationError(context.state, msg) from exc
 
-    def start_auth(self, context, request_info):
+    def start_auth(self, context, internal_request):
         """
         See super class method satosa.backends.base#start_auth
         """
@@ -160,28 +162,6 @@ class OpenIDFederationBackend(BackendModule):
 
         return url_map
 
-    def _verify_nonce(self, nonce, context):
-        """
-        Verify the received OIDC 'nonce' from the ID Token.
-        :param nonce: OIDC nonce
-        :type nonce: str
-        :param context: current request context
-        :type context: satosa.context.Context
-        :raise SATOSAAuthenticationError: if the nonce is incorrect
-        """
-        backend_state = context.state[self.name]
-        if nonce != backend_state[NONCE_KEY]:
-            msg = "Missing or invalid nonce in authn response for state: {}".format(
-                backend_state
-            )
-            logline = lu.LOG_FMT.format(
-                id=lu.get_session_id(context.state), message=msg
-            )
-            logger.debug(logline)
-            raise SATOSAAuthenticationError(
-                context.state, "Missing or invalid nonce in authn response"
-            )
-
     def _get_tokens(self, authn_response, context):
         """
         :param authn_response: authentication response from OP
@@ -216,34 +196,15 @@ class OpenIDFederationBackend(BackendModule):
                 ],
             )
 
-            self._check_error_response(token_resp, context)
+            check_error_response(token_resp, context)
             return token_resp["access_token"], token_resp["id_token"]
 
         return authn_response.get("access_token"), authn_response.get("id_token")
 
-    def _check_error_response(self, response, context):
-        """
-        Check if the response is an OAuth error response.
-        :param response: the OIDC response
-        :type response: oic.oic.message
-        :raise SATOSAAuthenticationError: if the response is an OAuth error response
-        """
-        if "error" in response:
-            msg = "{name} error: {error} {description}".format(
-                name=type(response).__name__,
-                error=response["error"],
-                description=response.get("error_description", ""),
-            )
-            logline = lu.LOG_FMT.format(
-                id=lu.get_session_id(context.state), message=msg
-            )
-            logger.debug(logline)
-            raise SATOSAAuthenticationError(context.state, "Access denied")
-
     def _get_userinfo(self, state, context):
         kwargs = {"method": self.config.client.get("userinfo_request_method", "GET")}
         userinfo_resp = self.oidfed.client.do_user_info_request(state=state, **kwargs)
-        self._check_error_response(userinfo_resp, context)
+        check_error_response(userinfo_resp, context)
         return userinfo_resp.to_dict()
 
     def response_endpoint(self, context, *args):
@@ -300,10 +261,10 @@ class OpenIDFederationBackend(BackendModule):
                 context.state, "Missing or invalid state in authn response"
             )
 
-        self._check_error_response(authn_resp, context)
+        check_error_response(authn_resp, context)
         access_token, id_token_claims = self._get_tokens(authn_resp, context)
         if id_token_claims:
-            self._verify_nonce(id_token_claims["nonce"], context)
+            verify_nonce(self.config.name, id_token_claims["nonce"], context)
         else:
             id_token_claims = {}
 
@@ -324,29 +285,10 @@ class OpenIDFederationBackend(BackendModule):
         msg = "UserInfo: {}".format(all_user_claims)
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
-        internal_resp = self._translate_response(
-            all_user_claims, self.oidfed.client.authorization_endpoint
+        internal_resp = translate_response(
+            self, all_user_claims, self.oidfed.client.authorization_endpoint
         )
         return self.config.auth_callback_func(context, internal_resp)
-
-    def _translate_response(self, response, issuer):
-        """
-        Translates oidc response to SATOSA internal response.
-        :type response: dict[str, str]
-        :type issuer: str
-        :type subject_type: str
-        :rtype: InternalData
-
-        :param response: Dictioary with attribute name as key.
-        :param issuer: The oidc op that gave the repsonse.
-        :param subject_type: public or pairwise according to oidc standard.
-        :return: A SATOSA internal response.
-        """
-        auth_info = AuthenticationInformation(UNSPECIFIED, str(datetime.now()), issuer)
-        internal_resp = InternalData(auth_info=auth_info)
-        internal_resp.attributes = self.converter.to_internal("openid", response)
-        internal_resp.subject_id = response["sub"]
-        return internal_resp
 
     def get_metadata_desc(self):
         """

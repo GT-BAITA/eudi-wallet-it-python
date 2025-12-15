@@ -6,14 +6,17 @@ import os
 import time
 from functools import lru_cache
 from secrets import token_hex
-from typing import NamedTuple
+from typing import NamedTuple, Type
 
 import requests
+import satosa.logging_util as lu
+from satosa.exception import SATOSAAuthenticationError
 
-from oidFed.tools.http import http_get_async, http_get_sync
-from typing import Type
+from oidFed.satosa.backends.OidFed.tools.http import http_get_async, http_get_sync
 
 logger = logging.getLogger(__name__)
+
+NONCE_KEY = "oidc_nonce"
 
 
 def make_timezone_aware(
@@ -74,6 +77,7 @@ def datetime_from_timestamp(timestamp: int | float) -> datetime.datetime:
 
     return make_timezone_aware(datetime.datetime.fromtimestamp(timestamp))
 
+
 def timestamp_from_datetime(dt: datetime.datetime) -> int:
     """
     Get a timestamp from a datetime.
@@ -85,6 +89,7 @@ def timestamp_from_datetime(dt: datetime.datetime) -> int:
     :rtype: int
     """
     return int(dt.timestamp())
+
 
 def get_http_url(
     urls: list[str] | str, httpc_params: dict, http_async: bool = True
@@ -163,7 +168,9 @@ def dynamic_class_loader(
     if callable(dynamic_class):
         storage_instance = dynamic_class(**init_params)
     else:
-        raise TypeError(f"The class '{class_name}' in module '{module_name}' is not callable.")
+        raise TypeError(
+            f"The class '{class_name}' in module '{module_name}' is not callable."
+        )
     return storage_instance
 
 
@@ -231,3 +238,24 @@ def _lru_cached_get_http_url(
     }
     resp: list[requests.Response] = get_http_url([url], httpc_params, http_async)
     return resp[0]
+
+
+def verify_nonce(backend_name, nonce, context):
+    """
+    Verify the received OIDC 'nonce' from the ID Token.
+    :param nonce: OIDC nonce
+    :type nonce: str
+    :param context: current request context
+    :type context: satosa.context.Context
+    :raise SATOSAAuthenticationError: if the nonce is incorrect
+    """
+    backend_state = context.state[backend_name]
+    if nonce != backend_state[NONCE_KEY]:
+        msg = "Missing or invalid nonce in authn response for state: {}".format(
+            backend_state
+        )
+        logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+        logger.debug(logline)
+        raise SATOSAAuthenticationError(
+            context.state, "Missing or invalid nonce in authn response"
+        )

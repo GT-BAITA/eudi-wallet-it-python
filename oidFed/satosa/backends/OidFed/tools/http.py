@@ -3,18 +3,17 @@ import asyncio
 import aiohttp
 import requests
 
-from oidFed.tools.exceptions import HttpError
+from oidFed.satosa.backends.OidFed.tools.exceptions import HttpError
 
 DEFAULT_HTTPC_PARAMS = {
-    "connection": {
-        "ssl": True
-    },
-    "session": {
-        "timeout": 4
-    },
+    "connection": {"ssl": True},
+    "session": {"timeout": 4},
 }
 
-def http_get_sync(urls: list[str], httpc_params: dict = DEFAULT_HTTPC_PARAMS) -> list[requests.Response]:
+
+def http_get_sync(
+    urls: list[str], httpc_params: dict = DEFAULT_HTTPC_PARAMS
+) -> list[requests.Response]:
     """
     Perform a GET http call sync.
 
@@ -44,7 +43,9 @@ def http_get_sync(urls: list[str], httpc_params: dict = DEFAULT_HTTPC_PARAMS) ->
     return res
 
 
-async def http_get_async(urls, httpc_params: dict = DEFAULT_HTTPC_PARAMS) -> list[requests.Response]:
+async def http_get_async(
+    urls, httpc_params: dict = DEFAULT_HTTPC_PARAMS
+) -> list[requests.Response]:
     """
     Perform a GET http call async.
 
@@ -68,7 +69,8 @@ async def http_get_async(urls, httpc_params: dict = DEFAULT_HTTPC_PARAMS) -> lis
     async with aiohttp.ClientSession(**httpc_params.get("session", {})) as session:
         text = await fetch_all(session, urls, httpc_params)
         return text
-    
+
+
 async def fetch(
     session: aiohttp.ClientSession, url: str, httpc_params: dict = DEFAULT_HTTPC_PARAMS
 ) -> aiohttp.ClientResponse:
@@ -82,7 +84,7 @@ async def fetch(
     :param httpc_params: parameters to perform http requests.
     :type httpc_params: dict
 
-    :returns: the client response 
+    :returns: the client response
     :rtype: aiohttp.ClientResponse
     """
 
@@ -93,7 +95,9 @@ async def fetch(
 
 
 async def fetch_all(
-    session: aiohttp.ClientSession, urls: list[str], httpc_params: dict = DEFAULT_HTTPC_PARAMS
+    session: aiohttp.ClientSession,
+    urls: list[str],
+    httpc_params: dict = DEFAULT_HTTPC_PARAMS,
 ) -> list[requests.Response]:
     """
     Fetches the content of a list of URL.

@@ -4,7 +4,7 @@ import logging
 from collections import OrderedDict
 from typing import Union
 
-from oidFed.tools.utils import datetime_from_timestamp
+from oidFed.satosa.backends.OidFed.tools.utils import datetime_from_timestamp
 
 from .exceptions import (
     InvalidEntityStatement,

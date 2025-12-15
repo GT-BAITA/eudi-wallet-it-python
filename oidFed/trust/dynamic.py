@@ -4,7 +4,7 @@ from typing import Any, Callable, List
 from satosa.context import Context
 from satosa.response import Response
 
-from oidFed.tools.utils import dynamic_class_loader
+from oidFed.satosa.backends.OidFed.tools.utils import dynamic_class_loader
 from oidFed.trust.handler.interface import TrustHandlerInterface
 
 logger = logging.getLogger(__name__)

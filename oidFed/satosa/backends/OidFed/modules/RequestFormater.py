@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import json
 import logging
 import os
 
@@ -10,7 +9,7 @@ from satosa.exception import SATOSAAuthenticationError
 from oidFed.jwt.exceptions import JWSSigningError
 from oidFed.jwt.jws_helper import JWSHelper
 from oidFed.satosa.backends.config import Config
-from oidFed.tools.utils import exp_from_now, iat_now
+from oidFed.satosa.backends.OidFed.tools.utils import exp_from_now, iat_now
 
 logger = logging.getLogger(__name__)
 
