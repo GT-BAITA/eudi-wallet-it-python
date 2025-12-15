@@ -66,12 +66,13 @@ def get_entity_statements(
     for url in urls:
         logger.debug(f"Starting Entity Statement Request to {url}")
 
-    return [i.content for i in get_http_url(urls, httpc_params, http_async)]
+    me = [i.text.strip() for i in get_http_url(urls, httpc_params, http_async)]
+    return me
 
 
 def get_entity_configurations(
     subjects: list[str] | str, httpc_params: dict, http_async: bool = False
-) -> list[bytes]:
+) -> list[str]:
     """
     Fetches an entity configuration from the specified subjects.
 
@@ -96,7 +97,7 @@ def get_entity_configurations(
         urls.append(url)
         logger.info(f"Starting Entity Configuration Request for {url}")
 
-    return [i.content for i in get_http_url(urls, httpc_params, http_async)]
+    return [i.text.strip() for i in get_http_url(urls, httpc_params, http_async)]
 
 
 class TrustMark:

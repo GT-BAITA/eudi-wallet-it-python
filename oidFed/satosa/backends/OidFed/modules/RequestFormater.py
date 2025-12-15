@@ -9,6 +9,7 @@ from satosa.exception import SATOSAAuthenticationError
 from oidFed.satosa.backends.config import Config
 from oidFed.satosa.backends.federation.exceptions import JWSSigningError
 from oidFed.satosa.backends.federation.schemas.jwt.jws_helper import JWSHelper
+from oidFed.satosa.backends.OidFed.trust_chain_builder import TrustChainBuilder
 from oidFed.satosa.backends.tools.utils import exp_from_now, iat_now
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,33 @@ class RequestFormater:
                     "https://attributes.eid.gov.it/fiscal_number": None,
                 },
             },
+            "trust_chain": self.__trust_chain(),
         }
 
         return claims
+
+    def __trust_chain(self):
+        logger.debug("ACHOOOOOOOOO")
+        httpc_param = {
+            "connection": {
+                "ssl": self.config.network["connection"]["ssl"],
+            },
+            "session": {"timeout": self.config.network["session"]["timeout"]},
+        }
+
+        builder = TrustChainBuilder(
+            subject=self.config.federation["metadata"]["client_id"],
+            httpc_params=httpc_param,
+            trust_anchor=self.config.federation["trust_anchors"][0],
+        )
+
+        logger.debug("INSTANCIOU")
+
+        builder.start()
+        if builder.is_valid:
+            logger.debug(f"jdubfojjjjjj {builder.get_trust_chain()}")
+            return builder.get_trust_chain()
+        else:
+            logger.error("Invalid trust chain")
+            logger.debug("FERROOOO")
+            return []
