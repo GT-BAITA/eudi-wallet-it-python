@@ -183,13 +183,17 @@ class RequestFormater:
                     "https://attributes.eid.gov.it/fiscal_number": None,
                 },
             },
-            "trust_chain": self.__trust_chain(),
         }
+
+        if (
+            hasattr(self.config.network, "request_with_trustchain")
+            and self.config.network["request_with_trustchain"]
+        ):
+            claims["trust_chain"] = self.__trust_chain()
 
         return claims
 
     def __trust_chain(self):
-        logger.debug("ACHOOOOOOOOO")
         httpc_param = {
             "connection": {
                 "ssl": self.config.network["connection"]["ssl"],
@@ -203,11 +207,8 @@ class RequestFormater:
             trust_anchor=self.config.federation["trust_anchors"][0],
         )
 
-        logger.debug("INSTANCIOU")
-
         builder.start()
         if builder.is_valid:
-            logger.debug(f"jdubfojjjjjj {builder.get_trust_chain()}")
             return builder.get_trust_chain()
         else:
             logger.error("Invalid trust chain")

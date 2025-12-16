@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
+from pydantic import BaseModel, Field, StrictInt
 
 
 class Session(BaseModel):
@@ -8,10 +8,11 @@ class Session(BaseModel):
 
 
 class Connection(BaseModel):
-    ssl: Optional[StrictBool] = True
+    ssl: Optional[bool] = True
 
 
 class NetworkConfigSchema(BaseModel):
     connection: Optional[Connection] = Field(default_factory=Connection)
     session: Optional[Session] = Field(default_factory=Session)
-    verify_ssl: Optional[StrictBool] = True
+    verify_ssl: Optional[bool] = True
+    request_with_trustchain: Optional[bool] = True
